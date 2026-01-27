@@ -1,0 +1,201 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - script/script/HelperConfig.s.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">script/script</a> - HelperConfig.s.sol<span style="font-size: 80%;"> (source / <a href="HelperConfig.s.sol.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">29</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-01-27 08:24:49</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.20;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import { MockAavePool } from &quot;../test/mocks/MockAavePool.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import { MockAaveOracle } from &quot;../test/mocks/MockAaveOracle.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : import { MockPoolDataProvider } from &quot;../test/mocks/MockPoolDataProvider.sol&quot;;</span>
+<span id="L7"><span class="lineNum">       7</span>              : import { Script } from &quot;forge-std/Script.sol&quot;;</span>
+<span id="L8"><span class="lineNum">       8</span>              : import { MockERC20 } from &quot;../test/mocks/MockERC20.sol&quot;;</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : contract HelperConfig is Script {</span>
+<span id="L11"><span class="lineNum">      11</span>              :     NetworkConfig public activeNetworkConfig;</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              :     uint8 public constant FEED_DECIMALS = 8;</span>
+<span id="L14"><span class="lineNum">      14</span>              :     uint8 public constant WETH_DECIMALS = 18;</span>
+<span id="L15"><span class="lineNum">      15</span>              :     uint8 public constant WBTC_DECIMALS = 8;</span>
+<span id="L16"><span class="lineNum">      16</span>              :     uint8 public constant USDC_DECIMALS = 6;</span>
+<span id="L17"><span class="lineNum">      17</span>              :     uint256 public constant ETH_USD_PRICE = 2000e8;</span>
+<span id="L18"><span class="lineNum">      18</span>              :     uint256 public constant BTC_USD_PRICE = 40000e8;</span>
+<span id="L19"><span class="lineNum">      19</span>              :     uint256 public constant USDC_USD_PRICE = 1e8;</span>
+<span id="L20"><span class="lineNum">      20</span>              : </span>
+<span id="L21"><span class="lineNum">      21</span>              :     struct NetworkConfig {</span>
+<span id="L22"><span class="lineNum">      22</span>              :         address cbeth;</span>
+<span id="L23"><span class="lineNum">      23</span>              :         address cbbtc;</span>
+<span id="L24"><span class="lineNum">      24</span>              :         address weth;</span>
+<span id="L25"><span class="lineNum">      25</span>              :         address wbtc;</span>
+<span id="L26"><span class="lineNum">      26</span>              :         address usdc;</span>
+<span id="L27"><span class="lineNum">      27</span>              :         address pool;</span>
+<span id="L28"><span class="lineNum">      28</span>              :         address oracle;</span>
+<span id="L29"><span class="lineNum">      29</span>              :         address dataProvider;</span>
+<span id="L30"><span class="lineNum">      30</span>              :         uint256 deployerKey;</span>
+<span id="L31"><span class="lineNum">      31</span>              :     }</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              :     MockERC20 public cbeth;</span>
+<span id="L34"><span class="lineNum">      34</span>              :     MockERC20 public cbbtc;</span>
+<span id="L35"><span class="lineNum">      35</span>              :     MockERC20 public weth;</span>
+<span id="L36"><span class="lineNum">      36</span>              :     MockERC20 public wbtc;</span>
+<span id="L37"><span class="lineNum">      37</span>              :     MockERC20 public usdc;</span>
+<span id="L38"><span class="lineNum">      38</span>              :     MockAavePool public pool;</span>
+<span id="L39"><span class="lineNum">      39</span>              :     MockAaveOracle public oracle;</span>
+<span id="L40"><span class="lineNum">      40</span>              :     MockPoolDataProvider public dataProvider;</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              :     uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaUNC tlaBgUNC">           0 :     constructor() {</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaUNC">           0 :         if (block.chainid == 11_155_111) {</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :             activeNetworkConfig = getSepoliaEthConfig();</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaUNC">           0 :         } else if (block.chainid == 8453) {</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaUNC">           0 :             activeNetworkConfig = getBaseMainConfig();</span></span>
+<span id="L49"><span class="lineNum">      49</span>              :         } else {</span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaUNC">           0 :             activeNetworkConfig = getOrCreateAnvilEthConfig();</span></span>
+<span id="L51"><span class="lineNum">      51</span>              :         }</span>
+<span id="L52"><span class="lineNum">      52</span>              :     }</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaUNC">           0 :     function getBaseMainConfig() public view returns (NetworkConfig memory mainnetNetworkConfig) {</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaUNC">           0 :         mainnetNetworkConfig = NetworkConfig({</span></span>
+<span id="L56"><span class="lineNum">      56</span>              :             cbeth: 0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22,</span>
+<span id="L57"><span class="lineNum">      57</span>              :             cbbtc: 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf,</span>
+<span id="L58"><span class="lineNum">      58</span>              :             weth: 0x4200000000000000000000000000000000000006,</span>
+<span id="L59"><span class="lineNum">      59</span>              :             wbtc: address(0),</span>
+<span id="L60"><span class="lineNum">      60</span>              :             usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,</span>
+<span id="L61"><span class="lineNum">      61</span>              :             pool: 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5,</span>
+<span id="L62"><span class="lineNum">      62</span>              :             oracle: 0x2Cc0Fc26eD4563A5ce5e8bdcfe1A2878676Ae156,</span>
+<span id="L63"><span class="lineNum">      63</span>              :             dataProvider: address(123456789), // TODO: replace with actual data provider address</span>
+<span id="L64"><span class="lineNum">      64</span>              :             deployerKey: vm.envUint(&quot;PRIVATE_KEY&quot;)</span>
+<span id="L65"><span class="lineNum">      65</span>              :         });</span>
+<span id="L66"><span class="lineNum">      66</span>              :     }</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaUNC">           0 :     function getSepoliaEthConfig() public view returns (NetworkConfig memory sepoliaNetworkConfig) {</span></span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaUNC">           0 :         sepoliaNetworkConfig = NetworkConfig({</span></span>
+<span id="L70"><span class="lineNum">      70</span>              :             cbeth: address(0),</span>
+<span id="L71"><span class="lineNum">      71</span>              :             cbbtc: address(0),</span>
+<span id="L72"><span class="lineNum">      72</span>              :             weth: 0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c,</span>
+<span id="L73"><span class="lineNum">      73</span>              :             wbtc: 0x29f2D40B0605204364af54EC677bD022dA425d03,</span>
+<span id="L74"><span class="lineNum">      74</span>              :             usdc: 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8,</span>
+<span id="L75"><span class="lineNum">      75</span>              :             pool: 0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951,</span>
+<span id="L76"><span class="lineNum">      76</span>              :             oracle: 0x2da88497588bf89281816106C7259e31AF45a663,</span>
+<span id="L77"><span class="lineNum">      77</span>              :             dataProvider: address(1), // TODO: replace with actual data provider address</span>
+<span id="L78"><span class="lineNum">      78</span>              :             deployerKey: vm.envUint(&quot;PRIVATE_KEY&quot;)</span>
+<span id="L79"><span class="lineNum">      79</span>              :         });</span>
+<span id="L80"><span class="lineNum">      80</span>              :     }</span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaUNC">           0 :     function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory anvilNetworkConfig) {</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :         // Check to see if we set an active network config</span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaUNC">           0 :         if (activeNetworkConfig.pool != address(0)) {</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaUNC">           0 :             return activeNetworkConfig;</span></span>
+<span id="L86"><span class="lineNum">      86</span>              :         }</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaUNC">           0 :         vm.startBroadcast();</span></span>
+<span id="L89"><span class="lineNum">      89</span>              :         // CBETH</span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaUNC">           0 :         cbeth = new MockERC20(&quot;Coinbase ETH&quot;, &quot;CBETH&quot;, WETH_DECIMALS);</span></span>
+<span id="L91"><span class="lineNum">      91</span>              :         // CBBTC</span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaUNC">           0 :         cbbtc = new MockERC20(&quot;Coinbase BTC&quot;, &quot;CBBTC&quot;, WBTC_DECIMALS);</span></span>
+<span id="L93"><span class="lineNum">      93</span>              :         // WETH</span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaUNC">           0 :         weth = new MockERC20(&quot;Wrapped ETH&quot;, &quot;WETH&quot;, WETH_DECIMALS);</span></span>
+<span id="L95"><span class="lineNum">      95</span>              :         // WBTC</span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaUNC">           0 :         wbtc = new MockERC20(&quot;Wrapped BTC&quot;, &quot;WBTC&quot;, WBTC_DECIMALS);</span></span>
+<span id="L97"><span class="lineNum">      97</span>              :         // USDC</span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaUNC">           0 :         usdc = new MockERC20(&quot;USD Coin&quot;, &quot;USDC&quot;, USDC_DECIMALS);</span></span>
+<span id="L99"><span class="lineNum">      99</span>              :         // Pool</span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaUNC">           0 :         pool = new MockAavePool();</span></span>
+<span id="L101"><span class="lineNum">     101</span>              :         // Oracle</span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaUNC">           0 :         oracle = new MockAaveOracle();</span></span>
+<span id="L103"><span class="lineNum">     103</span>              :         // Set prices</span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaUNC">           0 :         oracle.setAssetPrice(address(cbeth), ETH_USD_PRICE);</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaUNC">           0 :         oracle.setAssetPrice(address(cbbtc), BTC_USD_PRICE);</span></span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaUNC">           0 :         oracle.setAssetPrice(address(weth), ETH_USD_PRICE);</span></span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaUNC">           0 :         oracle.setAssetPrice(address(wbtc), BTC_USD_PRICE);</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaUNC">           0 :         oracle.setAssetPrice(address(usdc), USDC_USD_PRICE);</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaUNC">           0 :         vm.stopBroadcast();</span></span>
+<span id="L110"><span class="lineNum">     110</span>              :         // Data Provider</span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaUNC">           0 :         dataProvider = new MockPoolDataProvider();</span></span>
+<span id="L112"><span class="lineNum">     112</span>              : </span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaUNC">           0 :         anvilNetworkConfig = NetworkConfig({</span></span>
+<span id="L114"><span class="lineNum">     114</span>              :             cbeth: address(cbeth),</span>
+<span id="L115"><span class="lineNum">     115</span>              :             cbbtc: address(cbbtc),</span>
+<span id="L116"><span class="lineNum">     116</span>              :             weth: address(weth),</span>
+<span id="L117"><span class="lineNum">     117</span>              :             wbtc: address(wbtc),</span>
+<span id="L118"><span class="lineNum">     118</span>              :             usdc: address(usdc),</span>
+<span id="L119"><span class="lineNum">     119</span>              :             pool: address(pool),</span>
+<span id="L120"><span class="lineNum">     120</span>              :             oracle: address(oracle),</span>
+<span id="L121"><span class="lineNum">     121</span>              :             dataProvider: address(dataProvider),</span>
+<span id="L122"><span class="lineNum">     122</span>              :             deployerKey: DEFAULT_ANVIL_PRIVATE_KEY</span>
+<span id="L123"><span class="lineNum">     123</span>              :         });</span>
+<span id="L124"><span class="lineNum">     124</span>              :     }</span>
+<span id="L125"><span class="lineNum">     125</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
