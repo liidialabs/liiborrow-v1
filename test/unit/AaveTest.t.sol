@@ -369,7 +369,7 @@ contract AaveTest is Test {
 
     // ============ GET VARIABLE DEBT TESTS ============
 
-    function test_GetVariableDebt_ReturnsZeroWhenNoDebt() public {
+    function test_GetVariableDebt_ReturnsZeroWhenNoDebt() public view {
         uint256 debt = aave.getVariableDebt(custodian, address(usdc));
         assertEq(debt, 0);
     }
@@ -384,7 +384,7 @@ contract AaveTest is Test {
 
     // ============ GET SUPPLY BALANCE TESTS ============
 
-    function test_GetSupplyBalance_ReturnsZeroWhenNoSupply() public {
+    function test_GetSupplyBalance_ReturnsZeroWhenNoSupply() public view {
         uint256 supply = aave.getSupplyBalance(custodian, address(usdc));
         assertEq(supply, 0);
     }
@@ -478,7 +478,7 @@ contract AaveTest is Test {
 
     // ========== RESERVE TESTS ==========
 
-    function test_GetReserveLiquidationBonus_ReturnsCorrectValue() public {
+    function test_GetReserveLiquidationBonus_ReturnsCorrectValue() public view {
         uint256 liquidationBonus = aave.getAssetLiquidationBonus(address(weth));
 
         // liquidationBonus = (liquidationBonus * BASE_PRECISION) / PERCENT_PRECISION;
