@@ -12,10 +12,11 @@ contract DeployDebtManager is Script {
 
     Aave public aave;
     DebtManager public debtManager;
+    HelperConfig public helperConfig;
 
     function run() external returns (Aave, DebtManager) {
         // Deploy HelperConfig to get active network config
-        HelperConfig helperConfig = new HelperConfig();
+        helperConfig = new HelperConfig();
         // Get token, pool & oracle addresses from the active network config
         (
             address cbeth,
