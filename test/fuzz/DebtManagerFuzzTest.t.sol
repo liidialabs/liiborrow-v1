@@ -11,6 +11,7 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 import {MockPoolDataProvider} from "../mocks/MockPoolDataProvider.sol";
 import {IPool} from "../../src/interfaces/aave-v3/IPool.sol";
+import {IDebtManager} from "../../src/interfaces/IDebtManager.sol";
 import {HealthStatus, UserCollateral, LiquidationEarnings} from "../../src/Types.sol";
 import { ErrorsLib } from "../../src/libraries/ErrorsLib.sol";
 import { EventsLib } from "../../src/libraries/EventsLib.sol";
