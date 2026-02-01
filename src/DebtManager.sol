@@ -2,26 +2,32 @@
 
 pragma solidity ^0.8.20;
 
-import { ErrorsLib } from "./libraries/ErrorsLib.sol";
-import { EventsLib } from "./libraries/EventsLib.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { Aave } from "./Aave.sol";
-import { IPool } from "./interfaces/aave-v3/IPool.sol";
-import { IWETH } from "./interfaces/IWETH.sol";
-import { HealthStatus, UserCollateral, LiquidationEarnings } from "./Types.sol";
+import {ErrorsLib} from "./libraries/ErrorsLib.sol";
+import {
+    ReentrancyGuard
+} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    IERC20Metadata
+} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {Aave} from "./Aave.sol";
+import {IPool} from "./interfaces/aave-v3/IPool.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
+import {IDebtManager} from "./interfaces/IDebtManager.sol";
+import {HealthStatus, UserCollateral, LiquidationEarnings} from "./Types.sol";
 
 /*
- * @title GoLiquid 
+ * @title GoLiquid
  * @author Caleb Mokua
  * @description It's a CDP (Collateralized Debt Position) Protocol built on top of Aave
  */
 
-contract DebtManager is ReentrancyGuard, Ownable, Pausable {
+contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     // Types
     using SafeERC20 for IERC20;
 
@@ -32,7 +38,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     Aave public immutable aave;
     uint256 private immutable VTOKEN_DEC_PRECISION;
     address private immutable USDC;
-    
+
     address private constant ETH = address(0);
     uint256 private constant AAVE_LTV_PRECISION = 1e4; // 10000 = 100%
     uint256 private constant PLATFORM_AAVE_LTV_DIFF = 1e3; // 1000 = 10%
@@ -56,19 +62,22 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     uint256 private s_platformLtv;
     uint256 private s_platformLltv;
 
-    uint256 private aaveDebt;          // in underlying asset (wad)
-    uint256 private totalDebt;        // aave debt + protocol spread
-    uint256 private s_totalDebtShares;  // abstract shares
-    uint256 private s_protocolRevenueAccrued;  // in underlying asset (wad)
-    uint256 private protocolAPRMarkup = 0.005e18;   // wad (1e18), e.g. 1% = 0.01e18
+    uint256 private aaveDebt; // in underlying asset (wad)
+    uint256 private totalDebt; // aave debt + protocol spread
+    uint256 private s_totalDebtShares; // abstract shares
+    uint256 private s_protocolRevenueAccrued; // in underlying asset (wad)
+    uint256 private protocolAPRMarkup = 0.005e18; // wad (1e18), e.g. 1% = 0.01e18
     HealthStatus private healthStatus;
 
     /// @dev Mapping of token address to price feed address
-    mapping(address collateralToken => bool isSupported) private s_supportedCollateral;
+    mapping(address collateralToken => bool isSupported)
+        private s_supportedCollateral;
     /// @dev Enforce collateral token activity freezing
-    mapping(address collateralToken => bool isPaused) private s_collateralPaused;
+    mapping(address collateralToken => bool isPaused)
+        private s_collateralPaused;
     /// @dev Amount of collateral deposited by user
-    mapping(address user => mapping(address collateralToken => uint256 amount)) private s_collateralDeposited; // Tracks user's deposit position
+    mapping(address user => mapping(address collateralToken => uint256 amount))
+        private s_collateralDeposited; // Tracks user's deposit position
     /// @dev Amount of USDC borrowed
     mapping(address user => uint256 amount) private s_userDebtShares; // Tracks user's debt position
     /// @dev enforce s_coolDownPeriod after deposit deposit and repayment
@@ -97,7 +106,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         _;
     }
 
-    modifier enforceCooldown {
+    modifier enforceCooldown() {
         _enforceCooldown();
         _;
     }
@@ -105,7 +114,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     // CONSTRUCTOR
 
     constructor(
-        address[] memory tokenAddresses, 
+        address[] memory tokenAddresses,
         address _aave,
         address _usdc,
         address _weth
@@ -115,7 +124,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         }
         // map token addresses to price feeds
         for (uint256 i = 0; i < tokenAddresses.length; i++) {
-            if(tokenAddresses[i] == ETH) {
+            if (tokenAddresses[i] == ETH) {
                 revert ErrorsLib.DebtManager__ZeroAddress();
             }
             s_collateralTokens.push(tokenAddresses[i]);
@@ -124,7 +133,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         //
         aave = Aave(_aave);
         pool = aave.pool();
-        VTOKEN_DEC_PRECISION =  10 ** aave.vTokenDecimals();
+        VTOKEN_DEC_PRECISION = 10 ** aave.vTokenDecimals();
         //
         weth = IWETH(_weth);
         USDC = _usdc;
@@ -145,7 +154,6 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      */
     fallback() external payable {}
 
-
     // External Functions
 
     /**
@@ -155,13 +163,31 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     function depositCollateralERC20(
         address tokenCollateralAddress,
         uint256 amountCollateral
-    ) public isCollateralPaused(tokenCollateralAddress) moreThanZero(amountCollateral) nonReentrant isSupportedToken(tokenCollateralAddress) whenNotPaused {
+    )
+        public
+        override
+        isCollateralPaused(tokenCollateralAddress)
+        moreThanZero(amountCollateral)
+        nonReentrant
+        isSupportedToken(tokenCollateralAddress)
+        whenNotPaused
+    {
         s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
         s_totalColSupplied[tokenCollateralAddress] += amountCollateral;
-        s_collateralDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
-        emit EventsLib.CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
+        s_collateralDeposited[msg.sender][
+            tokenCollateralAddress
+        ] += amountCollateral;
+        emit CollateralDeposited(
+            msg.sender,
+            tokenCollateralAddress,
+            amountCollateral
+        );
 
-        IERC20(tokenCollateralAddress).safeTransferFrom(msg.sender, address(this), amountCollateral);
+        IERC20(tokenCollateralAddress).safeTransferFrom(
+            msg.sender,
+            address(this),
+            amountCollateral
+        );
         IERC20(tokenCollateralAddress).approve(address(pool), amountCollateral);
 
         // Aave supply logic
@@ -177,17 +203,26 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @dev Deposited ETH is wrapped into WETH before being supplied to Aave
      * @param amountCollateral: The amount of collateral being deposited (ETH)
      */
-    function depositCollateralETH(uint256 amountCollateral) payable external moreThanZero(msg.value) nonReentrant whenNotPaused {
+    function depositCollateralETH(
+        uint256 amountCollateral
+    )
+        external
+        payable
+        override
+        moreThanZero(msg.value)
+        nonReentrant
+        whenNotPaused
+    {
         s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
 
-        if(msg.value != amountCollateral) {
+        if (msg.value != amountCollateral) {
             revert ErrorsLib.DebtManager__AmountNotEqual();
         }
         s_totalColSupplied[ETH] += amountCollateral;
         /// @notice Since we cannot use ETH as an ERC20 we'll add it also to WETH
         s_collateralDeposited[msg.sender][ETH] += amountCollateral;
         s_collateralDeposited[msg.sender][address(weth)] += amountCollateral;
-        emit EventsLib.CollateralDeposited(msg.sender, ETH, amountCollateral);
+        emit CollateralDeposited(msg.sender, ETH, amountCollateral);
 
         // Aave supply logic
         weth.deposit{value: msg.value}();
@@ -211,19 +246,29 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         address collateral,
         uint256 amountCollateral,
         bool isEth
-    ) external moreThanZero(amountCollateral) nonReentrant isSupportedToken(collateral) enforceCooldown whenNotPaused {
+    )
+        external
+        override
+        moreThanZero(amountCollateral)
+        nonReentrant
+        isSupportedToken(collateral)
+        enforceCooldown
+        whenNotPaused
+    {
         s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
 
-        uint256 _amountCollateral = s_collateralDeposited[msg.sender][collateral];
-        if(_amountCollateral == 0) {
+        uint256 _amountCollateral = s_collateralDeposited[msg.sender][
+            collateral
+        ];
+        if (_amountCollateral == 0) {
             revert ErrorsLib.DebtManager__InsufficientCollateral();
         }
 
         uint256 maxAmount = _maxWithdrawAmount(msg.sender, collateral);
-        if(amountCollateral > maxAmount) {
+        if (amountCollateral > maxAmount) {
             amountCollateral = maxAmount;
         }
-        if(isEth) {
+        if (isEth) {
             s_collateralDeposited[msg.sender][ETH] -= amountCollateral;
         }
         s_collateralDeposited[msg.sender][collateral] -= amountCollateral;
@@ -237,21 +282,30 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Users can only borrow up to the max amount that keeps their HF above 1.0
      * @param amountToBorrow: The amount of USDC to borrow
      */
-    function borrowUsdc(uint256 amountToBorrow) external nonReentrant moreThanZero(amountToBorrow) enforceCooldown whenNotPaused {
+    function borrowUsdc(
+        uint256 amountToBorrow
+    )
+        external
+        override
+        nonReentrant
+        moreThanZero(amountToBorrow)
+        enforceCooldown
+        whenNotPaused
+    {
         // update platform ltv & lltv
         _currentPlatformLtvAndLltv();
 
         // check if supplied collateral
-        (,, uint256 collateralValueInUsd) = _getAccountInformation(msg.sender);
-        if(collateralValueInUsd == 0) {
+        (, , uint256 collateralValueInUsd) = _getAccountInformation(msg.sender);
+        if (collateralValueInUsd == 0) {
             revert ErrorsLib.DebtManager__NoCollateralSupplied();
         }
 
         uint256 maxBorrowAmount = _maxBorrowAmount(msg.sender);
-        if(amountToBorrow > maxBorrowAmount) {
+        if (amountToBorrow > maxBorrowAmount) {
             amountToBorrow = maxBorrowAmount;
         }
-        
+
         aave.revertIfHFBreaks(amountToBorrow, address(this));
         _currentPlatformDebt();
         _borrowUsd(amountToBorrow);
@@ -263,15 +317,19 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice If user is repaying more than they owe, excess is ignored
      * @param amountToRepay: The amount of USDC to repay
      */
-    function repayUsdc(uint256 amountToRepay) external nonReentrant moreThanZero(amountToRepay) whenNotPaused {
+    function repayUsdc(
+        uint256 amountToRepay
+    ) external override nonReentrant moreThanZero(amountToRepay) whenNotPaused {
         // check if borrowed
-        (uint256 totalUsdcBorrowedInUsd,,) = _getAccountInformation(msg.sender);
-        if(totalUsdcBorrowedInUsd == 0) {
+        (uint256 totalUsdcBorrowedInUsd, , ) = _getAccountInformation(
+            msg.sender
+        );
+        if (totalUsdcBorrowedInUsd == 0) {
             revert ErrorsLib.DebtManager__NoAssetBorrowed();
         }
         // check if excess
-        (,uint256 userTotalDebt) = _debtOwed(msg.sender); // NB: Current protocol debt is updated here
-        if(amountToRepay > userTotalDebt) {
+        (, uint256 userTotalDebt) = _debtOwed(msg.sender); // NB: Current protocol debt is updated here
+        if (amountToRepay > userTotalDebt) {
             amountToRepay = userTotalDebt;
         }
 
@@ -282,8 +340,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice APR cannot be set below base APR
      * @param _newAPR: The new APR spread
      */
-    function setProtocolAPRMarkup(uint256 _newAPR) external nonReentrant onlyOwner {
-        if(_newAPR < BASE_APR) {
+    function setProtocolAPRMarkup(
+        uint256 _newAPR
+    ) external override nonReentrant onlyOwner {
+        if (_newAPR < BASE_APR) {
             revert ErrorsLib.DebtManager__BelowBaseApr();
         }
         protocolAPRMarkup = _newAPR;
@@ -293,8 +353,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Liquidation fee cannot be set below base APR
      * @param _newFee: The new liquidation fee
      */
-    function setLiquidationFee(uint256 _newFee) external nonReentrant onlyOwner {
-        if(_newFee < BASE_APR) {
+    function setLiquidationFee(
+        uint256 _newFee
+    ) external override nonReentrant onlyOwner {
+        if (_newFee < BASE_APR) {
             revert ErrorsLib.DebtManager__BelowBaseApr();
         }
         s_liquidationFee = _newFee;
@@ -304,8 +366,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Cool down period cannot be set above max cool down
      * @param _newCoolDown: The new cool down period
      */
-    function setCoolDownPeriod(uint256 _newCoolDown) external nonReentrant onlyOwner {
-        if(_newCoolDown > MAX_COOLDOWN) {
+    function setCoolDownPeriod(
+        uint256 _newCoolDown
+    ) external override nonReentrant onlyOwner {
+        if (_newCoolDown > MAX_COOLDOWN) {
             revert ErrorsLib.DebtManager__ExceedsMaxCoolDown();
         }
         s_coolDownPeriod = _newCoolDown;
@@ -315,8 +379,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @dev Add a new collateral asset to the system
      * @param collateral: Address of the asset to add
      */
-    function addCollateralAsset(address collateral) external onlyOwner {
-        if(collateral == ETH) {
+    function addCollateralAsset(
+        address collateral
+    ) external override onlyOwner {
+        if (collateral == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
         s_collateralTokens.push(collateral);
@@ -327,11 +393,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @dev Pauses collateral activity(deposits) for a specific asset
      * @param collateral: Address of the asset to pause
      */
-    function pauseCollateralActivity(address collateral) external onlyOwner {
+    function pauseCollateralActivity(
+        address collateral
+    ) external override onlyOwner {
         if (collateral == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
-        if(s_collateralPaused[collateral]) {
+        if (s_collateralPaused[collateral]) {
             revert ErrorsLib.DebtManager__CollateralAlreadyPaused(collateral);
         }
         s_collateralPaused[collateral] = true;
@@ -341,11 +409,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @dev Unpauses collateral activity(deposits) for a specific asset
      * @param collateral: Address of the asset to unpause
      */
-    function unPauseCollateralActivity(address collateral) external onlyOwner {
+    function unPauseCollateralActivity(
+        address collateral
+    ) external override onlyOwner {
         if (collateral == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
-        if(!s_collateralPaused[collateral]) {
+        if (!s_collateralPaused[collateral]) {
             revert ErrorsLib.DebtManager__CollateralNotPaused(collateral);
         }
         s_collateralPaused[collateral] = false;
@@ -355,7 +425,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Pause the contract
      * @dev Only callable by the contract owner
      */
-    function pause() external onlyOwner {
+    function pause() external override onlyOwner {
         _pause();
     }
 
@@ -363,7 +433,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Unpause the contract
      * @dev Only callable by the contract owner
      */
-    function unpause() external onlyOwner {
+    function unpause() external override onlyOwner {
         _unpause();
     }
 
@@ -372,11 +442,16 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user The address of the user
      * @return ltv The user's loan-to-value ratio (LTV) in wad (1e18)
      */
-    function userLTV(address user) public returns(uint256 ltv) {
+    function userLTV(address user) public override returns (uint256 ltv) {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
 
-        (uint256 totalUsdcBorrowedInUsd,, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        if (totalUsdcBorrowedInUsd == 0 || collateralValueInUsd == 0) return type(uint256).max;
+        (
+            uint256 totalUsdcBorrowedInUsd,
+            ,
+            uint256 collateralValueInUsd
+        ) = _getAccountInformation(user);
+        if (totalUsdcBorrowedInUsd == 0 || collateralValueInUsd == 0)
+            return type(uint256).max;
 
         ltv = (totalUsdcBorrowedInUsd * BASE_PRECISION) / collateralValueInUsd;
     }
@@ -386,10 +461,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user: The address of the user
      * @return bool: True if liquidatable, false otherwise
      */
-    function isLiquidatable(address user) public returns (bool) {
+    function isLiquidatable(address user) public override returns (bool) {
         uint256 ltv = userLTV(user);
 
-        if(ltv == type(uint256).max) {
+        if (ltv == type(uint256).max) {
             return false; // no debt or no collateral
         }
         return ltv >= s_platformLltv;
@@ -404,37 +479,51 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      */
     function liquidate(
         address user,
-        address collateral, 
+        address collateral,
         uint256 repayAmount,
         bool isEth
-    ) external nonReentrant isSupportedToken(collateral) moreThanZero(repayAmount) whenNotPaused {      
+    )
+        external
+        override
+        nonReentrant
+        isSupportedToken(collateral)
+        moreThanZero(repayAmount)
+        whenNotPaused
+    {
         // check if liquidatable
-        if(!isLiquidatable(user)) {
+        if (!isLiquidatable(user)) {
             revert ErrorsLib.DebtManager__UserNotLiquidatable();
         }
 
         // check amount to repay & user's hf
-        (uint256 userAaveDebt,) = _debtOwed(user);
+        (uint256 userAaveDebt, ) = _debtOwed(user);
         uint256 currentHFactor = _healthFactor(user);
 
         // apply close factor
         uint256 closeFactor;
-        if(currentHFactor >= CLOSE_FACTOR_HF_THRESHOLD) {
+        if (currentHFactor >= CLOSE_FACTOR_HF_THRESHOLD) {
             closeFactor = DEFAULT_LIQUIDATION_CLOSE_FACTOR;
         } else {
             closeFactor = MAX_LIQUIDATION_CLOSE_FACTOR;
         }
         uint256 maxRepay = (userAaveDebt * closeFactor) / BASE_PRECISION;
-        if(repayAmount > maxRepay) {
+        if (repayAmount > maxRepay) {
             repayAmount = maxRepay;
         }
 
         // collateral to seize
         uint256 valueOfRepayAmount = _getUsdValue(USDC, repayAmount);
-        uint256 amountOfCollateralToSeize = getCollateralAmountLiquidate(collateral, valueOfRepayAmount);
-        amountOfCollateralToSeize = (amountOfCollateralToSeize * (BASE_PRECISION + s_liquidationFee)) / BASE_PRECISION; // add liquidation fee
+        uint256 amountOfCollateralToSeize = getCollateralAmountLiquidate(
+            collateral,
+            valueOfRepayAmount
+        );
+        amountOfCollateralToSeize =
+            (amountOfCollateralToSeize * (BASE_PRECISION + s_liquidationFee)) /
+            BASE_PRECISION; // add liquidation fee
 
-        if(s_collateralDeposited[user][collateral] < amountOfCollateralToSeize) {
+        if (
+            s_collateralDeposited[user][collateral] < amountOfCollateralToSeize
+        ) {
             revert ErrorsLib.DebtManager__InsufficientCollateral();
         }
 
@@ -454,14 +543,20 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         s_totalDebtShares -= sharesToBurn;
 
         // Seize and transfer collateral
-        if(isEth) {
+        if (isEth) {
             s_collateralDeposited[user][ETH] -= amountOfCollateralToSeize;
         }
         s_collateralDeposited[user][collateral] -= amountOfCollateralToSeize;
         _redeemCollateral(collateral, amountOfCollateralToSeize, true, isEth);
         _revertIfHealthFactorIsBroken(user);
 
-        emit EventsLib.Liquidated(msg.sender, user, collateral, repayAmount, uint32(block.timestamp));
+        emit Liquidated(
+            msg.sender,
+            user,
+            collateral,
+            repayAmount,
+            uint32(block.timestamp)
+        );
     }
 
     /* WITHDRAW FROM CONTRACT */
@@ -474,33 +569,46 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param amount: The amount to withdraw
      */
     function withdrawRevenue(
-        address to, 
-        address asset, 
+        address to,
+        address asset,
         uint256 amount
-    ) external moreThanZero(amount) isSupportedToken(asset) nonReentrant onlyOwner {
-        if(to == ETH || asset == ETH) {
+    )
+        external
+        override
+        moreThanZero(amount)
+        isSupportedToken(asset)
+        nonReentrant
+        onlyOwner
+    {
+        if (to == ETH || asset == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
-        if(asset == USDC) {
-            if(amount > s_protocolRevenueAccrued || s_protocolRevenueAccrued == 0) {
+        if (asset == USDC) {
+            if (
+                amount > s_protocolRevenueAccrued ||
+                s_protocolRevenueAccrued == 0
+            ) {
                 revert ErrorsLib.DebtManager__InsufficientAmountToWithdraw();
             }
             s_protocolRevenueAccrued -= amount;
         } else {
             uint256 revenue = s_liquidationRevenue[asset];
-            if(amount > revenue || revenue == 0) {
+            if (amount > revenue || revenue == 0) {
                 revert ErrorsLib.DebtManager__InsufficientAmountToWithdraw();
             }
             s_liquidationRevenue[asset] -= amount;
         }
 
         IERC20(asset).safeTransfer(to, amount);
-        emit EventsLib.RevenueWithdrawn(to, asset, amount, uint32(block.timestamp));
+        emit RevenueWithdrawn(
+            to,
+            asset,
+            amount,
+            uint32(block.timestamp)
+        );
     }
 
-
     // Private Functions
-
 
     /**
      * @dev Calls the Aave borrow function and updates user debt shares
@@ -511,14 +619,18 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
 
         uint256 shares; // to 1e18
         if (s_totalDebtShares == 0) {
-            shares = amountToBorrow * BASE_PRECISION / USDC_PRECISION; 
+            shares = (amountToBorrow * BASE_PRECISION) / USDC_PRECISION;
         } else {
             shares = _sharesToGet(amountToBorrow);
         }
         s_userDebtShares[msg.sender] += shares;
         s_totalDebtShares += shares;
 
-        emit EventsLib.BorrowedUsdc(msg.sender, amountToBorrow, uint32(block.timestamp));
+        emit BorrowedUsdc(
+            msg.sender,
+            amountToBorrow,
+            uint32(block.timestamp)
+        );
 
         // aave logic
         pool.borrow({
@@ -530,7 +642,6 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
             referralCode: 0,
             onBehalfOf: address(this)
         });
-
     }
 
     /**
@@ -541,11 +652,15 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         // take platform cut
         (uint256 aaveCut, uint256 protocolCut) = _repayCut(amountToRepay);
         s_protocolRevenueAccrued += protocolCut;
-        
+
         uint256 sharesToBurn = _sharesToBurn(aaveCut);
         s_userDebtShares[msg.sender] -= sharesToBurn;
         s_totalDebtShares -= sharesToBurn;
-        emit EventsLib.RepayUsdc(msg.sender, amountToRepay, uint32(block.timestamp));
+        emit RepayUsdc(
+            msg.sender,
+            amountToRepay,
+            uint32(block.timestamp)
+        );
 
         IERC20(USDC).safeTransferFrom(msg.sender, address(this), amountToRepay);
 
@@ -576,20 +691,26 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         uint256 amount;
 
         // aave logic
-        pool.withdraw({asset: collateral, amount: amountCollateral, to: address(this)});
+        pool.withdraw({
+            asset: collateral,
+            amount: amountCollateral,
+            to: address(this)
+        });
 
         // charge liquidation fee
-        if(isLiquidating) {
-            amount = (amountCollateral * BASE_PRECISION) / (BASE_PRECISION + s_liquidationFee);
+        if (isLiquidating) {
+            amount =
+                (amountCollateral * BASE_PRECISION) /
+                (BASE_PRECISION + s_liquidationFee);
             s_liquidationRevenue[collateral] += (amountCollateral - amount);
         } else {
             amount = amountCollateral;
         }
 
         // ETH transfer
-        if(isEth) {
+        if (isEth) {
             weth.withdraw(amount);
-            (bool sent,) = msg.sender.call{value: amount}("");
+            (bool sent, ) = msg.sender.call{value: amount}("");
             if (!sent) {
                 revert ErrorsLib.DebtManager__TransferFailed();
             }
@@ -598,19 +719,29 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         // ERC20 transfer
         IERC20(collateral).safeTransfer(msg.sender, amount);
 
-        emit EventsLib.CollateralRedeemed(msg.sender, msg.sender, collateral, amountCollateral);
+        emit CollateralRedeemed(
+            msg.sender,
+            msg.sender,
+            collateral,
+            amountCollateral
+        );
     }
 
     /**
-    * @dev Calculate the maximum borrow value in USD that a user can borrow without breaking their health factor
-    * @param user The address of the user
-    * @return upto The maximum borrow value in USD
-    */
-    function _maxBorrowValue(address user) private returns(uint256 upto) {
-        (uint256 totalUsdcBorrowedInUsd,, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        
-        uint256 collateralAdjustedForLtv = (collateralValueInUsd * s_platformLtv) / BASE_PRECISION;
-        if(totalUsdcBorrowedInUsd >= collateralAdjustedForLtv) {
+     * @dev Calculate the maximum borrow value in USD that a user can borrow without breaking their health factor
+     * @param user The address of the user
+     * @return upto The maximum borrow value in USD
+     */
+    function _maxBorrowValue(address user) private returns (uint256 upto) {
+        (
+            uint256 totalUsdcBorrowedInUsd,
+            ,
+            uint256 collateralValueInUsd
+        ) = _getAccountInformation(user);
+
+        uint256 collateralAdjustedForLtv = (collateralValueInUsd *
+            s_platformLtv) / BASE_PRECISION;
+        if (totalUsdcBorrowedInUsd >= collateralAdjustedForLtv) {
             revert ErrorsLib.DebtManager__AlreadyAtBreakingPoint();
         }
         upto = collateralAdjustedForLtv - totalUsdcBorrowedInUsd;
@@ -621,13 +752,15 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user The address of the user
      * @return upto The maximum borrow amount in USDC
      */
-    function _maxBorrowAmount(address user) private returns(uint256 upto) {
+    function _maxBorrowAmount(address user) private returns (uint256 upto) {
         uint256 maxBorrowValue = _maxBorrowValue(user);
 
         uint256 price = _getAssetPrice(USDC);
         uint8 tokenDecimals = IERC20Metadata(USDC).decimals();
 
-        upto = (maxBorrowValue * uint256(10 ** tokenDecimals)) / (price * ADDITIONAL_FEED_PRECISION);
+        upto =
+            (maxBorrowValue * uint256(10 ** tokenDecimals)) /
+            (price * ADDITIONAL_FEED_PRECISION);
     }
 
     /**
@@ -636,22 +769,31 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param collateral The collateral asset address
      * @return upto The maximum withdrawable amount of collateral
      */
-    function _maxWithdrawAmount(address user, address collateral) private returns(uint256 upto) { // Should maintain internal HF at 1
-        (uint256 totalUsdcBorrowedInUsd,, uint256 collateralValueInUsd) = _getAccountInformation(user);
+    function _maxWithdrawAmount(
+        address user,
+        address collateral
+    ) private returns (uint256 upto) {
+        // Should maintain internal HF at 1
+        (
+            uint256 totalUsdcBorrowedInUsd,
+            ,
+            uint256 collateralValueInUsd
+        ) = _getAccountInformation(user);
         uint256 amountCollateral = s_collateralDeposited[user][collateral];
         uint256 valueCollateral = _getUsdValue(collateral, amountCollateral);
 
         // Get the value
         uint256 withdrawalValue;
-        if(totalUsdcBorrowedInUsd == 0) {
+        if (totalUsdcBorrowedInUsd == 0) {
             withdrawalValue = collateralValueInUsd;
         } else {
-            uint256 threshold = (collateralValueInUsd * s_platformLtv) / BASE_PRECISION;
+            uint256 threshold = (collateralValueInUsd * s_platformLtv) /
+                BASE_PRECISION;
             withdrawalValue = threshold - totalUsdcBorrowedInUsd;
         }
 
         // Get value amount
-        if(valueCollateral < withdrawalValue) {
+        if (valueCollateral < withdrawalValue) {
             withdrawalValue = valueCollateral;
         }
 
@@ -664,11 +806,16 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param amountValue The USD value of the amount
      * @return amount The amount of collateral
      */
-    function _valueToAmount(address collateral, uint256 amountValue) private view returns(uint256 amount) {
+    function _valueToAmount(
+        address collateral,
+        uint256 amountValue
+    ) private view returns (uint256 amount) {
         uint256 price = _getAssetPrice(collateral);
         uint8 tokenDecimals = IERC20Metadata(collateral).decimals();
 
-        amount = (amountValue * uint256(10 ** tokenDecimals)) / (price * ADDITIONAL_FEED_PRECISION);
+        amount =
+            (amountValue * uint256(10 ** tokenDecimals)) /
+            (price * ADDITIONAL_FEED_PRECISION);
     }
 
     /**
@@ -677,8 +824,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return aaveCut The amount that goes to Aave
      * @return protocolCut The amount that goes to the protocol
      */
-    function _repayCut(uint256 amountBeingRepayed) private view returns(uint256 aaveCut, uint256 protocolCut) {
-        aaveCut = (amountBeingRepayed * BASE_PRECISION) / (BASE_PRECISION + protocolAPRMarkup);
+    function _repayCut(
+        uint256 amountBeingRepayed
+    ) private view returns (uint256 aaveCut, uint256 protocolCut) {
+        aaveCut =
+            (amountBeingRepayed * BASE_PRECISION) /
+            (BASE_PRECISION + protocolAPRMarkup);
         protocolCut = amountBeingRepayed - aaveCut;
     }
 
@@ -687,8 +838,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param amountToBorrow The amount of USDC to borrow
      * @return shares The number of debt shares to mint
      */
-    function _sharesToGet(uint256 amountToBorrow) private view returns(uint256 shares) {
-        shares = (amountToBorrow * s_totalDebtShares * VTOKEN_DEC_PRECISION) / (aaveDebt * USDC_PRECISION);
+    function _sharesToGet(
+        uint256 amountToBorrow
+    ) private view returns (uint256 shares) {
+        shares =
+            (amountToBorrow * s_totalDebtShares * VTOKEN_DEC_PRECISION) /
+            (aaveDebt * USDC_PRECISION);
     }
 
     /**
@@ -696,25 +851,33 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param amountToRepay The amount of USDC to repay
      * @return shares The number of debt shares to burn
      */
-    function _sharesToBurn(uint256 amountToRepay) private view returns(uint256 shares) {
-        shares = (amountToRepay * s_totalDebtShares * VTOKEN_DEC_PRECISION) / (aaveDebt * USDC_PRECISION);
+    function _sharesToBurn(
+        uint256 amountToRepay
+    ) private view returns (uint256 shares) {
+        shares =
+            (amountToRepay * s_totalDebtShares * VTOKEN_DEC_PRECISION) /
+            (aaveDebt * USDC_PRECISION);
     }
 
-
     // Private & Internal View & Pure Functions
-
 
     /**
      * @dev Calculate the user's share of debt in USDC
      * @param user The address of the user
-     * @return userAaveDebt The amount of debt owed to Aave, 
+     * @return userAaveDebt The amount of debt owed to Aave,
      * @return userTotalDebt The total amount of debt owed to the protocol and Aave (Aave + protocol cut)
      */
-    function _debtOwed(address user) private returns (uint256 userAaveDebt, uint256 userTotalDebt) {
+    function _debtOwed(
+        address user
+    ) private returns (uint256 userAaveDebt, uint256 userTotalDebt) {
         _currentPlatformDebt();
         if (s_userDebtShares[user] == 0) return (0, 0);
-        userAaveDebt = (s_userDebtShares[user] * aaveDebt * USDC_PRECISION) / (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to aave
-        userTotalDebt = (s_userDebtShares[user] * totalDebt * USDC_PRECISION) / (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to protocol + aave
+        userAaveDebt =
+            (s_userDebtShares[user] * aaveDebt * USDC_PRECISION) /
+            (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to aave
+        userTotalDebt =
+            (s_userDebtShares[user] * totalDebt * USDC_PRECISION) /
+            (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to protocol + aave
     }
 
     /**
@@ -723,30 +886,46 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      */
     function _currentPlatformDebt() private {
         aaveDebt = aave.getVariableDebt(address(this), USDC);
-        totalDebt = (aaveDebt * (BASE_PRECISION + protocolAPRMarkup)) / BASE_PRECISION;
+        totalDebt =
+            (aaveDebt * (BASE_PRECISION + protocolAPRMarkup)) /
+            BASE_PRECISION;
     }
 
     /**
      * @dev Calculate the current platform LTV and LLTV based on DebtManager Aave's position
      */
     function _currentPlatformLtvAndLltv() private {
-        (,,, uint256 currentLiquidationThreshold, uint256 ltv,) = pool.getUserAccountData(address(this));
+        (, , , uint256 currentLiquidationThreshold, uint256 ltv, ) = pool
+            .getUserAccountData(address(this));
         // Convert Aave LTV and LLTV to platform precision
-        s_platformLltv = ((currentLiquidationThreshold - PLATFORM_AAVE_LTV_DIFF) * BASE_PRECISION) / AAVE_LTV_PRECISION;
-        s_platformLtv = ((ltv - PLATFORM_AAVE_LTV_DIFF) * BASE_PRECISION) / AAVE_LTV_PRECISION;
+        s_platformLltv =
+            ((currentLiquidationThreshold - PLATFORM_AAVE_LTV_DIFF) *
+                BASE_PRECISION) /
+            AAVE_LTV_PRECISION;
+        s_platformLtv =
+            ((ltv - PLATFORM_AAVE_LTV_DIFF) * BASE_PRECISION) /
+            AAVE_LTV_PRECISION;
     }
 
     /**
-    * @dev Get account information for a user  
-    * @notice All return values are in USD value (1e18 = 1 USD)
-    * @param user The address of the user
-    * @return totalUsdcBorrowedInUsd The total USDC borrowed by the user in USD value
-    * @return totalUsdcToRepay The total USDC to repay by the user in USD value (including protocol cut)
-    * @return collateralValueInUsd The total collateral value of the user in USD
+     * @dev Get account information for a user
+     * @notice All return values are in USD value (1e18 = 1 USD)
+     * @param user The address of the user
+     * @return totalUsdcBorrowedInUsd The total USDC borrowed by the user in USD value
+     * @return totalUsdcToRepay The total USDC to repay by the user in USD value (including protocol cut)
+     * @return collateralValueInUsd The total collateral value of the user in USD
      */
-    function _getAccountInformation(address user) private
-        returns (uint256 totalUsdcBorrowedInUsd, uint256 totalUsdcToRepay, uint256 collateralValueInUsd)
-    {   // Get user's share of debt
+    function _getAccountInformation(
+        address user
+    )
+        private
+        returns (
+            uint256 totalUsdcBorrowedInUsd,
+            uint256 totalUsdcToRepay,
+            uint256 collateralValueInUsd
+        )
+    {
+        // Get user's share of debt
         (uint256 userAaveDebt, uint256 userTotalDebt) = _debtOwed(user);
         totalUsdcBorrowedInUsd = _getUsdValue(USDC, userAaveDebt);
         totalUsdcToRepay = _getUsdValue(USDC, userTotalDebt);
@@ -760,33 +939,48 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      */
     function _healthFactor(address user) private returns (uint256) {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
-        (uint256 totalUsdcBorrowedInUsd,, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        return _calculateHealthFactor(totalUsdcBorrowedInUsd, collateralValueInUsd);
+        (
+            uint256 totalUsdcBorrowedInUsd,
+            ,
+            uint256 collateralValueInUsd
+        ) = _getAccountInformation(user);
+        return
+            _calculateHealthFactor(
+                totalUsdcBorrowedInUsd,
+                collateralValueInUsd
+            );
     }
 
     /**
-    * @dev Get the asset price from Aave oracle
-    * @param token The address of the token
-    * @return price The price of the asset in USD (1e8 = 1 USD)
-    */
-    function _getAssetPrice(address token) private view returns (uint256 price) {
+     * @dev Get the asset price from Aave oracle
+     * @param token The address of the token
+     * @return price The price of the asset in USD (1e8 = 1 USD)
+     */
+    function _getAssetPrice(
+        address token
+    ) private view returns (uint256 price) {
         // get price (1e8 = 1 USD)
         price = aave.getAssetPrice(token);
     }
 
     /**
-    * @dev Get the USD value of an amount of a token
-    * @param token The address of the token
-    * @param amount The amount of the token
-    * @return value The USD value of the amount in USD (1e18 = 1 USD)
-    */
-    function _getUsdValue(address token, uint256 amount) private view returns (uint256 value) {
+     * @dev Get the USD value of an amount of a token
+     * @param token The address of the token
+     * @param amount The amount of the token
+     * @return value The USD value of the amount in USD (1e18 = 1 USD)
+     */
+    function _getUsdValue(
+        address token,
+        uint256 amount
+    ) private view returns (uint256 value) {
         // get price
         uint256 price = _getAssetPrice(token);
         // get decimals
         uint8 tokenDecimals = IERC20Metadata(token).decimals();
         // get value
-        value = (price * ADDITIONAL_FEED_PRECISION * amount) / uint256(10 ** tokenDecimals);
+        value =
+            (price * ADDITIONAL_FEED_PRECISION * amount) /
+            uint256(10 ** tokenDecimals);
     }
 
     /**
@@ -800,8 +994,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
         uint256 collateralValueInUsd
     ) internal view returns (uint256 hFactor) {
         if (totalUsdcBorrowedInUsd == 0) return type(uint256).max;
-        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * s_platformLltv) / BASE_PRECISION;
-        hFactor = (collateralAdjustedForThreshold * BASE_PRECISION) / totalUsdcBorrowedInUsd;
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd *
+            s_platformLltv) / BASE_PRECISION;
+        hFactor =
+            (collateralAdjustedForThreshold * BASE_PRECISION) /
+            totalUsdcBorrowedInUsd;
     }
 
     /**
@@ -816,17 +1013,17 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
-    * @dev Enforce cooldown period for user actions
-    */
+     * @dev Enforce cooldown period for user actions
+     */
     function _enforceCooldown() internal view {
-        if(s_coolDown[msg.sender] > uint32(block.timestamp)) {
+        if (s_coolDown[msg.sender] > uint32(block.timestamp)) {
             revert ErrorsLib.DebtManager__CoolDownActive();
         }
     }
 
     /**
-    * @dev Check if a token is supported as collateral
-    */
+     * @dev Check if a token is supported as collateral
+     */
     function _isSupportedToken(address token) internal view {
         if (s_supportedCollateral[token] == false) {
             revert ErrorsLib.DebtManager__TokenNotSupported(token);
@@ -834,8 +1031,8 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
-    * @dev Revert if amount is zero
-    */
+     * @dev Revert if amount is zero
+     */
     function _moreThanZero(uint256 amount) internal pure {
         if (amount == 0) {
             revert ErrorsLib.DebtManager__NeedsMoreThanZero();
@@ -843,17 +1040,16 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     }
 
     /**
-    * @dev Check if collateral activity is paused for a token
-    */
+     * @dev Check if collateral activity is paused for a token
+     */
     function _isCollateralPaused(address token) internal view {
-        if(token == ETH) {
+        if (token == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
         if (s_collateralPaused[token]) {
             revert ErrorsLib.DebtManager__CollateralActivityPaused(token);
         }
     }
-
 
     // External & Public View & Pure Functions
 
@@ -864,9 +1060,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return amount: The amount of collateral
      */
     function getCollateralAmount(
-        address collateral, 
+        address collateral,
         uint256 valueOfRepayAmount
-    ) public view returns(uint256) {
+    ) public view override returns (uint256) {
         return _valueToAmount(collateral, valueOfRepayAmount);
     }
 
@@ -877,11 +1073,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return amount: The amount of collateral to seize
      */
     function getCollateralAmountLiquidate(
-        address collateral, 
+        address collateral,
         uint256 valueOfRepayAmount
-    ) public view returns(uint256) {
+    ) public view override returns (uint256) {
         uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral);
-        uint256 valueOfCollateralToSeize = (valueOfRepayAmount * liquidationBonus) / BASE_PRECISION;
+        uint256 valueOfCollateralToSeize = (valueOfRepayAmount *
+            liquidationBonus) / BASE_PRECISION;
         return _valueToAmount(collateral, valueOfCollateralToSeize);
     }
 
@@ -891,31 +1088,38 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param collateral: The collateral asset address
      * @return amount: The maximum withdrawable amount of collateral
      */
-    function getUserMaxCollateralWithdrawAmount(address user, address collateral) external returns(uint256) {
+    function getUserMaxCollateralWithdrawAmount(
+        address user,
+        address collateral
+    ) external override returns (uint256) {
         _currentPlatformLtvAndLltv();
-        
+
         uint256 _amountCollateral = s_collateralDeposited[user][collateral];
-        if(_amountCollateral == 0) {
+        if (_amountCollateral == 0) {
             revert ErrorsLib.DebtManager__InsufficientCollateral();
         }
         return _maxWithdrawAmount(user, collateral);
     }
 
     /**
-    * @notice Returns whether a token is supported for collateral
-    * @param token: The address of the token
-    * @return bool: Whether the token is supported
-    */
-    function checkIfTokenSupported(address token) external view returns (bool) {
+     * @notice Returns whether a token is supported for collateral
+     * @param token: The address of the token
+     * @return bool: Whether the token is supported
+     */
+    function checkIfTokenSupported(
+        address token
+    ) external view override returns (bool) {
         return s_supportedCollateral[token];
     }
 
     /**
-    * @notice Returns whether collateral activity is paused for a token
-    * @param token: The address of the token
-    * @return bool: Whether collateral activity is paused
-    */
-    function checkIfCollateralPaused(address token) external view returns (bool) {
+     * @notice Returns whether collateral activity is paused for a token
+     * @param token: The address of the token
+     * @return bool: Whether collateral activity is paused
+     */
+    function checkIfCollateralPaused(
+        address token
+    ) external view override returns (bool) {
         return s_collateralPaused[token];
     }
 
@@ -925,7 +1129,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return value The maximum borrowable value in USD
      * @return amount The maximum borrowable amount in USDC
      */
-    function getUserMaxBorrow(address user) external returns(uint256 value, uint256 amount) {
+    function getUserMaxBorrow(
+        address user
+    ) external override returns (uint256 value, uint256 amount) {
         _currentPlatformLtvAndLltv();
 
         value = _maxBorrowValue(user);
@@ -938,7 +1144,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return userAaveDebt The amount of debt owed to Aave
      * @return userTotalDebt The total amount of debt owed to the protocol and Aave (Aave + protocol cut)
      */
-    function getUserDebt(address user) external returns (uint256 userAaveDebt, uint256 userTotalDebt) {
+    function getUserDebt(
+        address user
+    ) external override returns (uint256 userAaveDebt, uint256 userTotalDebt) {
         (userAaveDebt, userTotalDebt) = _debtOwed(user);
     }
 
@@ -947,7 +1155,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return aaveDebt: The total debt owed to Aave
      * @return totalDebt: The total debt owed to the protocol and Aave (Aave + protocol cut)
      */
-    function getPlatformDebt() external returns(uint256, uint256) {
+    function getPlatformDebt() external override returns (uint256, uint256) {
         _currentPlatformDebt();
         return (aaveDebt, totalDebt);
     }
@@ -956,7 +1164,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the protocol revenue accrued
      * @return revenue: The protocol revenue accrued
      */
-    function getProtocolRevenue() external view returns(uint256) {
+    function getProtocolRevenue() external view override returns (uint256) {
         return s_protocolRevenueAccrued;
     }
 
@@ -964,7 +1172,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the protocol APR markup
      * @return apr: The protocol APR markup
      */
-    function getProtocolAPRMarkup() external view returns(uint256) {
+    function getProtocolAPRMarkup() external view override returns (uint256) {
         return protocolAPRMarkup;
     }
 
@@ -972,7 +1180,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the liquidation fee
      * @return fee The liquidation fee
      */
-    function getLiquidationFee() external view returns(uint256) {
+    function getLiquidationFee() external view override returns (uint256) {
         return s_liquidationFee;
     }
 
@@ -981,7 +1189,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param collateral The collateral asset address
      * @return bonus The liquidation bonus
      */
-    function getLiquidationBonus(address collateral) external view returns(uint256 bonus) {
+    function getLiquidationBonus(
+        address collateral
+    ) external view override returns (uint256 bonus) {
         bonus = aave.getAssetLiquidationBonus(collateral);
         bonus = bonus - BASE_PRECISION; // return only the bonus part
     }
@@ -990,7 +1200,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the cool down period
      * @return period: The cool down period in seconds
      */
-    function getCoolDownPeriod() external view returns(uint256) {
+    function getCoolDownPeriod() external view override returns (uint256) {
         return s_coolDownPeriod;
     }
 
@@ -1000,7 +1210,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return healthFactor The health factor of the user
      * @return status The health status of the user
      */
-    function getUserHealthFactor(address user) external returns (uint256 healthFactor, HealthStatus status) {
+    function getUserHealthFactor(
+        address user
+    ) external override returns (uint256 healthFactor, HealthStatus status) {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
 
         healthFactor = _healthFactor(user);
@@ -1019,8 +1231,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user The address of the user
      * @return totalUsdcToRepay The total amount to repay in USDC (Aave debt + protocol cut)
      */
-    function getUserTotalDebt(address user) external returns (uint256 totalUsdcToRepay) {
-        (, totalUsdcToRepay,) = _getAccountInformation(user);
+    function getUserTotalDebt(
+        address user
+    ) external override returns (uint256 totalUsdcToRepay) {
+        (, totalUsdcToRepay, ) = _getAccountInformation(user);
     }
 
     /**
@@ -1031,15 +1245,17 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return _totalDebt The total debt value in USD, wad (1e8 = 1 USD)
      * @return _hFactor The health factor of the user
      */
-    function getUserAccountData(address user) external returns (
-        uint256 _totalCollateral,
-        uint256 _totalDebt,
-        uint256 _hFactor
-    ) {
+    function getUserAccountData(
+        address user
+    )
+        external
+        override
+        returns (uint256 _totalCollateral, uint256 _totalDebt, uint256 _hFactor)
+    {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
-        (_totalDebt,, _totalCollateral) = _getAccountInformation(user);
-        _totalDebt = _totalDebt * USD_PRECISION / BASE_PRECISION;
-        _totalCollateral = _totalCollateral * USD_PRECISION / BASE_PRECISION;
+        (_totalDebt, , _totalCollateral) = _getAccountInformation(user);
+        _totalDebt = (_totalDebt * USD_PRECISION) / BASE_PRECISION;
+        _totalCollateral = (_totalCollateral * USD_PRECISION) / BASE_PRECISION;
         _hFactor = _calculateHealthFactor(_totalDebt, _totalCollateral);
     }
 
@@ -1049,7 +1265,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param amount: The amount of the token
      * @return value: The USD value of the token amount
      */
-    function getUsdValue(address token, uint256 amount) external view returns (uint256) {
+    function getUsdValue(
+        address token,
+        uint256 amount
+    ) external view override returns (uint256) {
         return _getUsdValue(token, amount);
     }
 
@@ -1058,11 +1277,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param token The address of the token
      * @return price The price of the asset in USD (1e8 = 1 USD)
      */
-    function getAssetPrice(address token) external view returns (uint256 price) {
+    function getAssetPrice(
+        address token
+    ) external view override returns (uint256 price) {
         if (token == ETH) {
             revert ErrorsLib.DebtManager__TokenNotAllowed(token);
         }
-        if(s_supportedCollateral[token] == false) {
+        if (s_supportedCollateral[token] == false) {
             revert ErrorsLib.DebtManager__TokenNotSupported(token);
         }
         price = _getAssetPrice(token);
@@ -1074,7 +1295,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param token: The address of the token
      * @return balance: The collateral balance of the user for the specified token
      */
-    function getCollateralBalanceOfUser(address user, address token) external view returns (uint256) {
+    function getCollateralBalanceOfUser(
+        address user,
+        address token
+    ) external view override returns (uint256) {
         return s_collateralDeposited[user][token];
     }
 
@@ -1083,11 +1307,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user The address of the user
      * @return totalCollateralValueInUsd The total collateral value of the user in USD
      */
-    function getAccountCollateralValue(address user) public view returns (uint256 totalCollateralValueInUsd) {
+    function getAccountCollateralValue(
+        address user
+    ) public view override returns (uint256 totalCollateralValueInUsd) {
         for (uint256 index = 0; index < s_collateralTokens.length; index++) {
             address token = s_collateralTokens[index];
             uint256 amount = s_collateralDeposited[user][token];
-            if(amount == 0) continue;
+            if (amount == 0) continue;
             totalCollateralValueInUsd += _getUsdValue(token, amount);
         }
     }
@@ -1098,7 +1324,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @return lltv: The platform liquidation loan-to-value ratio (LLTV) in wad (1e18)
      * @return ltv: The platform loan-to-value ratio (LTV) in wad (1e18)
      */
-    function getPlatformLltvAndLtv() external returns (uint256, uint256) {
+    function getPlatformLltvAndLtv()
+        external
+        override
+        returns (uint256, uint256)
+    {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
         return (s_platformLltv, s_platformLtv);
     }
@@ -1106,8 +1336,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
     /**
      * @notice Returns an array of collateral tokens
      * @return tokens: The collateral tokens
-    */
-    function getCollateralTokens() external view returns (address[] memory) {
+     */
+    function getCollateralTokens()
+        external
+        view
+        override
+        returns (address[] memory)
+    {
         return s_collateralTokens;
     }
 
@@ -1116,7 +1351,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param collateral: The collateral asset address
      * @return totalColSupplied: The total collateral supplied for the specified token
      */
-    function getTotalColSupplied(address collateral) external view returns (uint256) {
+    function getTotalColSupplied(
+        address collateral
+    ) external view override returns (uint256) {
         return s_totalColSupplied[collateral];
     }
 
@@ -1124,7 +1361,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the total debt shares in the protocol
      * @return totalDebtShares: The total debt shares
      */
-    function getTotalDebtShares() external view returns (uint256) {
+    function getTotalDebtShares() external view override returns (uint256) {
         return s_totalDebtShares;
     }
 
@@ -1133,7 +1370,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user: The address of the user
      * @return userShares: The user's debt shares
      */
-    function getUserShares(address user) external view returns (uint256) {
+    function getUserShares(
+        address user
+    ) external view override returns (uint256) {
         return s_userDebtShares[user];
     }
 
@@ -1142,39 +1381,40 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param user: The address of the user
      * @return healthFactor: The health factor of the user
      */
-    function getHealthFactor(address user) external returns (uint256) {
+    function getHealthFactor(address user) external override returns (uint256) {
         return _healthFactor(user);
     }
 
     /**
-    * @notice Returns the next activity timestamp for a user
-    * @param user: The address of the user
-    * @return timestamp: The next activity timestamp
-    */
-    function getNextActivity(address user) external view returns (uint32) {
+     * @notice Returns the next activity timestamp for a user
+     * @param user: The address of the user
+     * @return timestamp: The next activity timestamp
+     */
+    function getNextActivity(
+        address user
+    ) external view override returns (uint32) {
         return s_coolDown[user];
     }
 
     /**
-    * @notice Returns the user's supplied collateral amount
-    * @param user The address of the user
-    * @return userCollateral The user's supplied collateral amounts
-    */
-    function getUserSuppliedCollateralAmount( address user ) external view returns (UserCollateral[] memory userCollateral) {
+     * @notice Returns the user's supplied collateral amount
+     * @param user The address of the user
+     * @return userCollateral The user's supplied collateral amounts
+     */
+    function getUserSuppliedCollateralAmount(
+        address user
+    ) external view override returns (UserCollateral[] memory userCollateral) {
         uint256 len = s_collateralTokens.length;
         userCollateral = new UserCollateral[](len);
 
         for (uint256 i = 0; i < len; i++) {
             address tokenAddress = s_collateralTokens[i];
             uint256 amount = s_collateralDeposited[user][tokenAddress];
-            if(amount == 0) continue;
+            if (amount == 0) continue;
 
             string memory symbol = IERC20Metadata(tokenAddress).symbol();
 
-            userCollateral[i] = UserCollateral({
-                token: symbol,
-                amount: amount
-            });
+            userCollateral[i] = UserCollateral({token: symbol, amount: amount});
         }
     }
 
@@ -1182,7 +1422,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @notice Returns the liquidation revenue accrued for each collateral token
      * @return liquidationEarnings The liquidation revenue accrued
      */
-    function getLiquidationRevenue() external view returns (LiquidationEarnings[] memory liquidationEarnings) {
+    function getLiquidationRevenue()
+        external
+        view
+        override
+        returns (LiquidationEarnings[] memory liquidationEarnings)
+    {
         uint256 len = s_collateralTokens.length;
         liquidationEarnings = new LiquidationEarnings[](len);
 
@@ -1204,7 +1449,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable {
      * @param asset: The collateral asset address
      * @return revenue: The liquidation revenue accrued
      */
-    function getLiquidationRevenueSpecific(address asset) external view returns(uint256) {
+    function getLiquidationRevenueSpecific(
+        address asset
+    ) external view override returns (uint256) {
         return s_liquidationRevenue[asset];
     }
 }
