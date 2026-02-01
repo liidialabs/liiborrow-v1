@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
 import {DebtManager} from "../../src/DebtManager.sol";
 import {Aave} from "../../src/Aave.sol";
 import {MockAavePool} from "../mocks/MockAavePool.sol";
@@ -11,12 +10,14 @@ import {MockPoolDataProvider} from "../mocks/MockPoolDataProvider.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 import {IPool} from "../../src/interfaces/aave-v3/IPool.sol";
+import {IDebtManager} from "../../src/interfaces/IDebtManager.sol";
 import {HealthStatus, UserCollateral, LiquidationEarnings} from "../../src/Types.sol";
 import { ErrorsLib } from "../../src/libraries/ErrorsLib.sol";
 import { EventsLib } from "../../src/libraries/EventsLib.sol";
 
 contract DebtManagerTest is Test {
-    DebtManager public debtManager;
+    IDebtManager public debtManager;
+    DebtManager public _debtManager;
     Aave public aave;
     MockAavePool public mockPool;
     MockAaveOracle public mockOracle;
@@ -154,12 +155,13 @@ contract DebtManagerTest is Test {
         tokenAddresses[2] = address(usdc);
 
         // Deploy DebtManager
-        debtManager = new DebtManager(
+        _debtManager = new DebtManager(
             tokenAddresses,
             address(aave),
             address(usdc),
             address(weth)
         );
+        debtManager = IDebtManager(address(_debtManager));
 
         COOLDOWN = debtManager.getCoolDownPeriod();
 
@@ -206,9 +208,9 @@ contract DebtManagerTest is Test {
     // ============ CONSTRUCTOR TESTS ============
 
     function test_Constructor_SetsCorrectly() public view {
-        assertEq(address(debtManager.pool()), address(mockPool));
-        assertEq(address(debtManager.weth()), address(weth));
-        assertEq(address(debtManager.aave()), address(aave));
+        assertEq(address(_debtManager.pool()), address(mockPool));
+        assertEq(address(_debtManager.weth()), address(weth));
+        assertEq(address(_debtManager.aave()), address(aave));
     }
 
     function test_Constructor_RevertsOnNoCollateralParsed() public {
