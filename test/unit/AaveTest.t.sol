@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.20;
 
-import { DeployAave } from "../../script/DeployAave.s.sol";
 import { Aave } from "../../src/Aave.sol";
 import { ErrorsLib } from "../../src/libraries/ErrorsLib.sol";
 import { MockAavePool } from "../mocks/MockAavePool.sol";
@@ -15,7 +14,6 @@ import { IPool } from "../../src/interfaces/aave-v3/IPool.sol";
 import { HealthStatus } from "../../src/Types.sol";
 
 contract AaveTest is Test {
-    DeployAave public deploy;
     Aave public aave;
     MockAavePool public mockPool;
     MockAaveOracle public mockOracle;
@@ -35,7 +33,6 @@ contract AaveTest is Test {
 
     function setUp() external {
         // Deploy mocks
-        deploy = new DeployAave();
         mockPool = new MockAavePool();
         mockOracle = new MockAaveOracle();
         mockPoolDataProvider = new MockPoolDataProvider();
