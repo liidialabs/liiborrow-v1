@@ -5,7 +5,7 @@ library EventsLib {
     // DebtManager Events
 
     event Supply(address indexed user, address indexed token, uint256 amount);
-    event CollateralRedeemed(
+    event Withdraw(
         address indexed redeemFrom,
         address indexed redeemTo,
         address indexed token,
