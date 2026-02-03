@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-27 08:24:49</td>
+            <td class="headerValue">2026-02-03 11:20:50</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryLo">36.4&nbsp;%</td>
@@ -217,29 +217,29 @@
 <span id="L155"><span class="lineNum">     155</span>              :     /**</span>
 <span id="L156"><span class="lineNum">     156</span>              :      * @notice Withdraw assets from the pool</span>
 <span id="L157"><span class="lineNum">     157</span>              :      */</span>
-<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">        1218 :     function withdraw(</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">        1209 :     function withdraw(</span></span>
 <span id="L159"><span class="lineNum">     159</span>              :         address asset,</span>
 <span id="L160"><span class="lineNum">     160</span>              :         uint256 amount,</span>
 <span id="L161"><span class="lineNum">     161</span>              :         address to</span>
 <span id="L162"><span class="lineNum">     162</span>              :     ) external override returns (uint256) {</span>
-<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">        1218 :         require(!shouldRevertOnWithdraw, &quot;MockPool: withdraw reverted&quot;);</span></span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">        1218 :         require(userCollateral[msg.sender][asset] &gt;= amount, &quot;MockPool: insufficient collateral&quot;);</span></span>
-<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">        1218 :         require(</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">        1209 :         require(!shouldRevertOnWithdraw, &quot;MockPool: withdraw reverted&quot;);</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">        1209 :         require(userCollateral[msg.sender][asset] &gt;= amount, &quot;MockPool: insufficient collateral&quot;);</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">        1209 :         require(</span></span>
 <span id="L166"><span class="lineNum">     166</span>              :             IERC20(reserves[asset].aTokenAddress).balanceOf(to) &gt;= amount,</span>
 <span id="L167"><span class="lineNum">     167</span>              :             &quot;Insufficient aToken&quot;</span>
 <span id="L168"><span class="lineNum">     168</span>              :         );</span>
 <span id="L169"><span class="lineNum">     169</span>              : </span>
 <span id="L170"><span class="lineNum">     170</span>              :         // burn aTokens</span>
-<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">        1218 :         MockERC20(reserves[asset].aTokenAddress).burn(to, amount);</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">        1209 :         MockERC20(reserves[asset].aTokenAddress).burn(to, amount);</span></span>
 <span id="L172"><span class="lineNum">     172</span>              :         </span>
 <span id="L173"><span class="lineNum">     173</span>              :         // Update user collateral</span>
-<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">        1218 :         userCollateral[msg.sender][asset] -= amount;</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">        1209 :         userCollateral[msg.sender][asset] -= amount;</span></span>
 <span id="L175"><span class="lineNum">     175</span>              :         </span>
 <span id="L176"><span class="lineNum">     176</span>              :         // Transfer tokens to recipient</span>
-<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        1218 :         IERC20(asset).transfer(to, amount);</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">        1209 :         IERC20(asset).transfer(to, amount);</span></span>
 <span id="L178"><span class="lineNum">     178</span>              :         </span>
-<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">        1218 :         emit MockWithdraw(asset, amount, to);</span></span>
-<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">        1218 :         return amount;</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">        1209 :         emit MockWithdraw(asset, amount, to);</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">        1209 :         return amount;</span></span>
 <span id="L181"><span class="lineNum">     181</span>              :     }</span>
 <span id="L182"><span class="lineNum">     182</span>              :     </span>
 <span id="L183"><span class="lineNum">     183</span>              :     /**</span>
@@ -269,31 +269,31 @@
 <span id="L207"><span class="lineNum">     207</span>              :     /**</span>
 <span id="L208"><span class="lineNum">     208</span>              :      * @notice Repay borrowed assets</span>
 <span id="L209"><span class="lineNum">     209</span>              :      */</span>
-<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">         963 :     function repay(</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">         955 :     function repay(</span></span>
 <span id="L211"><span class="lineNum">     211</span>              :         address asset,</span>
 <span id="L212"><span class="lineNum">     212</span>              :         uint256 amount,</span>
 <span id="L213"><span class="lineNum">     213</span>              :         uint256 interestRateMode,</span>
 <span id="L214"><span class="lineNum">     214</span>              :         address onBehalfOf</span>
 <span id="L215"><span class="lineNum">     215</span>              :     ) external override returns (uint256) {</span>
-<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">         963 :         require(!shouldRevertOnRepay, &quot;MockPool: repay reverted&quot;);</span></span>
-<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         963 :         require(</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">         955 :         require(!shouldRevertOnRepay, &quot;MockPool: repay reverted&quot;);</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         955 :         require(</span></span>
 <span id="L218"><span class="lineNum">     218</span>              :             IERC20(reserves[asset].variableDebtTokenAddress).balanceOf(onBehalfOf) &gt;= amount,</span>
 <span id="L219"><span class="lineNum">     219</span>              :             &quot;Insufficient vToken&quot;</span>
 <span id="L220"><span class="lineNum">     220</span>              :         );</span>
 <span id="L221"><span class="lineNum">     221</span>              :         </span>
-<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">         963 :         uint256 debtAmount = userDebt[onBehalfOf][asset];</span></span>
-<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         963 :         uint256 amountToRepay = amount &gt; debtAmount ? debtAmount : amount;</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">         955 :         uint256 debtAmount = userDebt[onBehalfOf][asset];</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         955 :         uint256 amountToRepay = amount &gt; debtAmount ? debtAmount : amount;</span></span>
 <span id="L224"><span class="lineNum">     224</span>              :         </span>
 <span id="L225"><span class="lineNum">     225</span>              :         // burn variable tokens</span>
-<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         963 :         MockERC20(reserves[asset].variableDebtTokenAddress).burn(onBehalfOf, amount);</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         955 :         MockERC20(reserves[asset].variableDebtTokenAddress).burn(onBehalfOf, amount);</span></span>
 <span id="L227"><span class="lineNum">     227</span>              :         // Transfer tokens from sender to pool</span>
-<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         963 :         IERC20(asset).transferFrom(msg.sender, address(this), amountToRepay);</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         955 :         IERC20(asset).transferFrom(msg.sender, address(this), amountToRepay);</span></span>
 <span id="L229"><span class="lineNum">     229</span>              :         </span>
 <span id="L230"><span class="lineNum">     230</span>              :         // Update user debt</span>
-<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">         963 :         userDebt[onBehalfOf][asset] -= amountToRepay;</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">         955 :         userDebt[onBehalfOf][asset] -= amountToRepay;</span></span>
 <span id="L232"><span class="lineNum">     232</span>              :         </span>
-<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">         963 :         emit MockRepay(asset, amountToRepay, onBehalfOf);</span></span>
-<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">         963 :         return userDebt[onBehalfOf][asset];</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">         955 :         emit MockRepay(asset, amountToRepay, onBehalfOf);</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">         955 :         return userDebt[onBehalfOf][asset];</span></span>
 <span id="L235"><span class="lineNum">     235</span>              :     }</span>
 <span id="L236"><span class="lineNum">     236</span>              :     </span>
 <span id="L237"><span class="lineNum">     237</span>              :     /**</span>
@@ -357,7 +357,7 @@
 <span id="L295"><span class="lineNum">     295</span>              :     /**</span>
 <span id="L296"><span class="lineNum">     296</span>              :      * @notice Get user account data</span>
 <span id="L297"><span class="lineNum">     297</span>              :      */</span>
-<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC tlaBgGNC">       17058 :     function getUserAccountData(address user)</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC tlaBgGNC">       17017 :     function getUserAccountData(address user)</span></span>
 <span id="L299"><span class="lineNum">     299</span>              :         external</span>
 <span id="L300"><span class="lineNum">     300</span>              :         view</span>
 <span id="L301"><span class="lineNum">     301</span>              :         override</span>
@@ -370,8 +370,8 @@
 <span id="L308"><span class="lineNum">     308</span>              :             uint256 healthFactor</span>
 <span id="L309"><span class="lineNum">     309</span>              :         )</span>
 <span id="L310"><span class="lineNum">     310</span>              :     {</span>
-<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">       17058 :         UserAccountData memory data = userAccounts[user];</span></span>
-<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">       17058 :         return (</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">       17017 :         UserAccountData memory data = userAccounts[user];</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">       17017 :         return (</span></span>
 <span id="L313"><span class="lineNum">     313</span>              :             data.totalCollateralBase,</span>
 <span id="L314"><span class="lineNum">     314</span>              :             data.totalDebtBase,</span>
 <span id="L315"><span class="lineNum">     315</span>              :             data.availableBorrowsBase,</span>
@@ -384,13 +384,13 @@
 <span id="L322"><span class="lineNum">     322</span>              :     /**</span>
 <span id="L323"><span class="lineNum">     323</span>              :      * @notice Get reserve data for an asset</span>
 <span id="L324"><span class="lineNum">     324</span>              :      */</span>
-<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">       23308 :     function getReserveData(address asset)</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">       23250 :     function getReserveData(address asset)</span></span>
 <span id="L326"><span class="lineNum">     326</span>              :         external</span>
 <span id="L327"><span class="lineNum">     327</span>              :         view</span>
 <span id="L328"><span class="lineNum">     328</span>              :         override</span>
 <span id="L329"><span class="lineNum">     329</span>              :         returns (ReserveData memory)</span>
 <span id="L330"><span class="lineNum">     330</span>              :     {</span>
-<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">       23308 :         return reserves[asset];</span></span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">       23250 :         return reserves[asset];</span></span>
 <span id="L332"><span class="lineNum">     332</span>              :     }</span>
 <span id="L333"><span class="lineNum">     333</span>              :     </span>
 <span id="L334"><span class="lineNum">     334</span>              :     // ============ HELPER FUNCTIONS ============</span>

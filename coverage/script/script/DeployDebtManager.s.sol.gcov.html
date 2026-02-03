@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-27 08:24:49</td>
+            <td class="headerValue">2026-02-03 11:20:50</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
@@ -74,40 +74,41 @@
 <span id="L12"><span class="lineNum">      12</span>              : </span>
 <span id="L13"><span class="lineNum">      13</span>              :     Aave public aave;</span>
 <span id="L14"><span class="lineNum">      14</span>              :     DebtManager public debtManager;</span>
-<span id="L15"><span class="lineNum">      15</span>              : </span>
-<span id="L16"><span class="lineNum">      16</span> <span class="tlaUNC tlaBgUNC">           0 :     function run() external returns (Aave, DebtManager) {</span></span>
-<span id="L17"><span class="lineNum">      17</span>              :         // Deploy HelperConfig to get active network config</span>
-<span id="L18"><span class="lineNum">      18</span> <span class="tlaUNC">           0 :         HelperConfig helperConfig = new HelperConfig();</span></span>
-<span id="L19"><span class="lineNum">      19</span>              :         // Get token, pool &amp; oracle addresses from the active network config</span>
-<span id="L20"><span class="lineNum">      20</span> <span class="tlaUNC">           0 :         (</span></span>
-<span id="L21"><span class="lineNum">      21</span>              :             address cbeth,</span>
-<span id="L22"><span class="lineNum">      22</span>              :             address cbbtc,</span>
-<span id="L23"><span class="lineNum">      23</span>              :             address weth,</span>
-<span id="L24"><span class="lineNum">      24</span>              :             address wbtc,</span>
-<span id="L25"><span class="lineNum">      25</span>              :             address usdc,</span>
-<span id="L26"><span class="lineNum">      26</span>              :             address pool,</span>
-<span id="L27"><span class="lineNum">      27</span>              :             address oracle,</span>
-<span id="L28"><span class="lineNum">      28</span>              :             address dataProvider,</span>
-<span id="L29"><span class="lineNum">      29</span>              :             uint256 deployerKey</span>
-<span id="L30"><span class="lineNum">      30</span> <span class="tlaUNC">           0 :         ) = helperConfig.activeNetworkConfig();</span></span>
-<span id="L31"><span class="lineNum">      31</span>              :         // Prepare token addresses array</span>
-<span id="L32"><span class="lineNum">      32</span> <span class="tlaUNC">           0 :         recievedTokenAddresses = [cbeth, cbbtc, weth, wbtc, usdc];</span></span>
-<span id="L33"><span class="lineNum">      33</span> <span class="tlaUNC">           0 :         for (uint256 i = 0; i &lt; recievedTokenAddresses.length; i++) {</span></span>
-<span id="L34"><span class="lineNum">      34</span> <span class="tlaUNC">           0 :             if (recievedTokenAddresses[i] != address(0)) {</span></span>
-<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC">           0 :                 tokenAddresses.push(recievedTokenAddresses[i]);</span></span>
-<span id="L36"><span class="lineNum">      36</span>              :             }</span>
-<span id="L37"><span class="lineNum">      37</span>              :         }</span>
-<span id="L38"><span class="lineNum">      38</span>              : </span>
-<span id="L39"><span class="lineNum">      39</span> <span class="tlaUNC">           0 :         vm.startBroadcast(deployerKey);</span></span>
-<span id="L40"><span class="lineNum">      40</span>              :         // deploy aave</span>
-<span id="L41"><span class="lineNum">      41</span> <span class="tlaUNC">           0 :         aave = new Aave(pool, oracle, dataProvider, usdc);</span></span>
-<span id="L42"><span class="lineNum">      42</span>              :         // deploy debt manager</span>
-<span id="L43"><span class="lineNum">      43</span> <span class="tlaUNC">           0 :         debtManager = new DebtManager(tokenAddresses, address(aave), usdc, weth);</span></span>
-<span id="L44"><span class="lineNum">      44</span> <span class="tlaUNC">           0 :         vm.stopBroadcast();</span></span>
-<span id="L45"><span class="lineNum">      45</span>              : </span>
-<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :         return (aave, debtManager);</span></span>
-<span id="L47"><span class="lineNum">      47</span>              :     }</span>
-<span id="L48"><span class="lineNum">      48</span>              : }</span>
+<span id="L15"><span class="lineNum">      15</span>              :     HelperConfig public helperConfig;</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaUNC tlaBgUNC">           0 :     function run() external returns (Aave, DebtManager) {</span></span>
+<span id="L18"><span class="lineNum">      18</span>              :         // Deploy HelperConfig to get active network config</span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaUNC">           0 :         helperConfig = new HelperConfig();</span></span>
+<span id="L20"><span class="lineNum">      20</span>              :         // Get token, pool &amp; oracle addresses from the active network config</span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaUNC">           0 :         (</span></span>
+<span id="L22"><span class="lineNum">      22</span>              :             address cbeth,</span>
+<span id="L23"><span class="lineNum">      23</span>              :             address cbbtc,</span>
+<span id="L24"><span class="lineNum">      24</span>              :             address weth,</span>
+<span id="L25"><span class="lineNum">      25</span>              :             address wbtc,</span>
+<span id="L26"><span class="lineNum">      26</span>              :             address usdc,</span>
+<span id="L27"><span class="lineNum">      27</span>              :             address pool,</span>
+<span id="L28"><span class="lineNum">      28</span>              :             address oracle,</span>
+<span id="L29"><span class="lineNum">      29</span>              :             address dataProvider,</span>
+<span id="L30"><span class="lineNum">      30</span>              :             uint256 deployerKey</span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaUNC">           0 :         ) = helperConfig.activeNetworkConfig();</span></span>
+<span id="L32"><span class="lineNum">      32</span>              :         // Prepare token addresses array</span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaUNC">           0 :         recievedTokenAddresses = [cbeth, cbbtc, weth, wbtc, usdc];</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaUNC">           0 :         for (uint256 i = 0; i &lt; recievedTokenAddresses.length; i++) {</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC">           0 :             if (recievedTokenAddresses[i] != address(0)) {</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaUNC">           0 :                 tokenAddresses.push(recievedTokenAddresses[i]);</span></span>
+<span id="L37"><span class="lineNum">      37</span>              :             }</span>
+<span id="L38"><span class="lineNum">      38</span>              :         }</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaUNC">           0 :         vm.startBroadcast(deployerKey);</span></span>
+<span id="L41"><span class="lineNum">      41</span>              :         // deploy aave</span>
+<span id="L42"><span class="lineNum">      42</span> <span class="tlaUNC">           0 :         aave = new Aave(pool, oracle, dataProvider, usdc);</span></span>
+<span id="L43"><span class="lineNum">      43</span>              :         // deploy debt manager</span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaUNC">           0 :         debtManager = new DebtManager(tokenAddresses, address(aave), usdc, weth);</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaUNC">           0 :         vm.stopBroadcast();</span></span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaUNC">           0 :         return (aave, debtManager);</span></span>
+<span id="L48"><span class="lineNum">      48</span>              :     }</span>
+<span id="L49"><span class="lineNum">      49</span>              : }</span>
         </pre>
               </td>
             </tr>

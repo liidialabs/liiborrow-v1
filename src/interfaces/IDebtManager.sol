@@ -17,11 +17,7 @@ interface IDebtManager {
      * @param token The collateral token address (or ETH sentinel address).
      * @param amount Amount of collateral deposited.
      */
-    event CollateralDeposited(
-        address indexed user,
-        address indexed token,
-        uint256 amount
-    );
+    event Supply(address indexed user, address indexed token, uint256 amount);
 
     /**
      * @notice Emitted when collateral is redeemed from the protocol.
@@ -30,7 +26,7 @@ interface IDebtManager {
      * @param token The collateral token address.
      * @param amount The amount redeemed.
      */
-    event CollateralRedeemed(
+    event Withdraw(
         address indexed redeemFrom,
         address indexed redeemTo,
         address indexed token,
@@ -59,7 +55,7 @@ interface IDebtManager {
      * @param amount The amount borrowed in USDC.
      * @param timestamp The block timestamp when borrow occurred.
      */
-    event BorrowedUsdc(address indexed user, uint256 amount, uint32 timestamp);
+    event Borrow(address indexed user, uint256 amount, uint32 timestamp);
 
     /**
      * @notice Emitted when a user repays USDC to the protocol.

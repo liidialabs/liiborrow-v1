@@ -177,11 +177,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_collateralDeposited[msg.sender][
             tokenCollateralAddress
         ] += amountCollateral;
-        emit CollateralDeposited(
-            msg.sender,
-            tokenCollateralAddress,
-            amountCollateral
-        );
+        emit Supply(msg.sender, tokenCollateralAddress, amountCollateral);
 
         IERC20(tokenCollateralAddress).safeTransferFrom(
             msg.sender,
@@ -222,7 +218,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         /// @notice Since we cannot use ETH as an ERC20 we'll add it also to WETH
         s_collateralDeposited[msg.sender][ETH] += amountCollateral;
         s_collateralDeposited[msg.sender][address(weth)] += amountCollateral;
-        emit CollateralDeposited(msg.sender, ETH, amountCollateral);
+        emit Supply(msg.sender, ETH, amountCollateral);
 
         // Aave supply logic
         weth.deposit{value: msg.value}();
@@ -600,12 +596,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         }
 
         IERC20(asset).safeTransfer(to, amount);
-        emit RevenueWithdrawn(
-            to,
-            asset,
-            amount,
-            uint32(block.timestamp)
-        );
+        emit RevenueWithdrawn(to, asset, amount, uint32(block.timestamp));
     }
 
     // Private Functions
@@ -626,11 +617,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_userDebtShares[msg.sender] += shares;
         s_totalDebtShares += shares;
 
-        emit BorrowedUsdc(
-            msg.sender,
-            amountToBorrow,
-            uint32(block.timestamp)
-        );
+        emit Borrow(msg.sender, amountToBorrow, uint32(block.timestamp));
 
         // aave logic
         pool.borrow({
@@ -656,11 +643,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         uint256 sharesToBurn = _sharesToBurn(aaveCut);
         s_userDebtShares[msg.sender] -= sharesToBurn;
         s_totalDebtShares -= sharesToBurn;
-        emit RepayUsdc(
-            msg.sender,
-            amountToRepay,
-            uint32(block.timestamp)
-        );
+        emit RepayUsdc(msg.sender, amountToRepay, uint32(block.timestamp));
 
         IERC20(USDC).safeTransferFrom(msg.sender, address(this), amountToRepay);
 
@@ -719,12 +702,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         // ERC20 transfer
         IERC20(collateral).safeTransfer(msg.sender, amount);
 
-        emit CollateralRedeemed(
-            msg.sender,
-            msg.sender,
-            collateral,
-            amountCollateral
-        );
+        emit Withdraw(msg.sender, msg.sender, collateral, amountCollateral);
     }
 
     /**

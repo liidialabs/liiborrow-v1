@@ -11,9 +11,13 @@ import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
 import {IPool} from "../../src/interfaces/aave-v3/IPool.sol";
 import {IDebtManager} from "../../src/interfaces/IDebtManager.sol";
-import {HealthStatus, UserCollateral, LiquidationEarnings} from "../../src/Types.sol";
-import { ErrorsLib } from "../../src/libraries/ErrorsLib.sol";
-import { EventsLib } from "../../src/libraries/EventsLib.sol";
+import {
+    HealthStatus,
+    UserCollateral,
+    LiquidationEarnings
+} from "../../src/Types.sol";
+import {ErrorsLib} from "../../src/libraries/ErrorsLib.sol";
+import {EventsLib} from "../../src/libraries/EventsLib.sol";
 
 contract DebtManagerTest is Test {
     IDebtManager public debtManager;
@@ -131,22 +135,31 @@ contract DebtManagerTest is Test {
         mockPool.setReserveData(address(wbtc), reserveData_wbtc);
 
         // Setup pool data provider
-        MockPoolDataProvider.ReserveConfig memory reserveConfig_weth = MockPoolDataProvider.ReserveConfig({
-            decimals: BASE_PRECISION,
-            ltv: 7500, // 75%
-            liquidationThreshold: 8000, // 80%
-            liquidationBonus: 10500, // 105%
-            reserveFactor: 1000, // 10%
-            usageAsCollateralEnabled: true,
-            borrowingEnabled: true,
-            stableBorrowRateEnabled: true,
-            isActive: true,
-            isFrozen: false
-        });
-        mockPoolDataProvider.setReserveConfigurationData(address(weth), reserveConfig_weth);
+        MockPoolDataProvider.ReserveConfig
+            memory reserveConfig_weth = MockPoolDataProvider.ReserveConfig({
+                decimals: BASE_PRECISION,
+                ltv: 7500, // 75%
+                liquidationThreshold: 8000, // 80%
+                liquidationBonus: 10500, // 105%
+                reserveFactor: 1000, // 10%
+                usageAsCollateralEnabled: true,
+                borrowingEnabled: true,
+                stableBorrowRateEnabled: true,
+                isActive: true,
+                isFrozen: false
+            });
+        mockPoolDataProvider.setReserveConfigurationData(
+            address(weth),
+            reserveConfig_weth
+        );
 
         // Deploy Aave
-        aave = new Aave(address(mockPool), address(mockOracle), address(mockPoolDataProvider), address(usdc));
+        aave = new Aave(
+            address(mockPool),
+            address(mockOracle),
+            address(mockPoolDataProvider),
+            address(usdc)
+        );
 
         // Setup token arrays for DebtManager
         address[] memory tokenAddresses = new address[](3);
@@ -227,10 +240,13 @@ contract DebtManagerTest is Test {
         tokenAddresses[0] = address(weth);
         tokenAddresses[1] = address(0);
 
-        vm.expectRevert(
-            ErrorsLib.DebtManager__ZeroAddress.selector
+        vm.expectRevert(ErrorsLib.DebtManager__ZeroAddress.selector);
+        new DebtManager(
+            tokenAddresses,
+            address(aave),
+            address(usdc),
+            address(weth)
         );
-        new DebtManager(tokenAddresses, address(aave), address(usdc), address(weth));
     }
 
     // ============ DEPOSIT COLLATERAL ERC20 TESTS ============
@@ -240,18 +256,24 @@ contract DebtManagerTest is Test {
 
         vm.startPrank(user1);
         wbtc.approve(address(debtManager), depositAmount);
-        
+
         vm.expectEmit(true, true, true, true);
-        emit EventsLib.CollateralDeposited(user1, address(wbtc), depositAmount);
-        
+        emit EventsLib.Supply(user1, address(wbtc), depositAmount);
+
         debtManager.depositCollateralERC20(address(wbtc), depositAmount);
         vm.stopPrank();
 
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(wbtc)), depositAmount);
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(wbtc)),
+            depositAmount
+        );
         assertEq(debtManager.getTotalColSupplied(address(wbtc)), depositAmount);
 
         // balance check
-        uint256 balance = aave.getSupplyBalance(address(debtManager), address(wbtc));
+        uint256 balance = aave.getSupplyBalance(
+            address(debtManager),
+            address(wbtc)
+        );
         assertEq(balance, depositAmount);
     }
 
@@ -269,10 +291,13 @@ contract DebtManagerTest is Test {
 
     function test_DepositCollateralERC20_RevertsOnUnallowedToken() public {
         MockERC20 randomToken = new MockERC20("Random", "RND", 18);
-        
+
         vm.prank(user1);
         vm.expectRevert(
-            abi.encodeWithSelector(ErrorsLib.DebtManager__TokenNotSupported.selector, address(randomToken))
+            abi.encodeWithSelector(
+                ErrorsLib.DebtManager__TokenNotSupported.selector,
+                address(randomToken)
+            )
         );
         debtManager.depositCollateralERC20(address(randomToken), 1 ether);
     }
@@ -283,7 +308,7 @@ contract DebtManagerTest is Test {
 
         vm.startPrank(user1);
         weth.approve(address(debtManager), firstDeposit + secondDeposit);
-        
+
         debtManager.depositCollateralERC20(address(weth), firstDeposit);
         debtManager.depositCollateralERC20(address(weth), secondDeposit);
         vm.stopPrank();
@@ -300,17 +325,23 @@ contract DebtManagerTest is Test {
         uint256 depositAmount = 1 ether;
 
         vm.deal(user1, depositAmount);
-        
+
         vm.prank(user1);
         vm.expectEmit(true, true, true, true);
-        emit EventsLib.CollateralDeposited(user1, address(0), depositAmount);
-        
+        emit EventsLib.Supply(user1, address(0), depositAmount);
+
         debtManager.depositCollateralETH{value: depositAmount}(depositAmount);
 
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(0)), depositAmount);
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(0)),
+            depositAmount
+        );
 
         // balance check
-        uint256 balance = aave.getSupplyBalance(address(debtManager), address(weth));
+        uint256 balance = aave.getSupplyBalance(
+            address(debtManager),
+            address(weth)
+        );
         assertEq(balance, depositAmount);
 
         // next Activity
@@ -320,7 +351,7 @@ contract DebtManagerTest is Test {
 
     function test_DepositCollateralETH_RevertsOnMismatchedAmount() public {
         vm.deal(user1, 2 ether);
-        
+
         vm.prank(user1);
         vm.expectRevert(ErrorsLib.DebtManager__AmountNotEqual.selector);
         debtManager.depositCollateralETH{value: 2 ether}(1 ether);
@@ -357,7 +388,7 @@ contract DebtManagerTest is Test {
         debtManager.borrowUsdc(borrowAmount);
 
         // Check debt was recorded
-        (uint256 aaveDebt,) = debtManager.getUserDebt(user1);
+        (uint256 aaveDebt, ) = debtManager.getUserDebt(user1);
         assertEq(aaveDebt, 5000e6);
         uint256 userShares = debtManager.getUserShares(user1);
         assertEq(userShares, 5000e18);
@@ -368,7 +399,10 @@ contract DebtManagerTest is Test {
         assertEq(hf, expectedHf);
 
         // vUsdc balance
-        uint256 balance = aave.getVariableDebt(address(debtManager), address(usdc));
+        uint256 balance = aave.getVariableDebt(
+            address(debtManager),
+            address(usdc)
+        );
         assertEq(balance, borrowAmount);
 
         // get total shares
@@ -408,9 +442,17 @@ contract DebtManagerTest is Test {
     function test_BorrowUsdc_RevertsOnHfBreak() public {
         uint256 collateralAmount = 10 ether; // $20k
         _depositWETH(user2, collateralAmount);
-        
+
         // Borrow close to limit
-        _setUserAccountData(address(debtManager), 20000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(10000e6);
@@ -420,8 +462,8 @@ contract DebtManagerTest is Test {
 
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
-        vm.expectRevert(ErrorsLib.DebtManager__AlreadyAtBreakingPoint.selector);  
-        debtManager.borrowUsdc(10000e6);      
+        vm.expectRevert(ErrorsLib.DebtManager__AlreadyAtBreakingPoint.selector);
+        debtManager.borrowUsdc(10000e6);
     }
 
     function test_BorrowUsdc_RevertsOnZeroAmount() public {
@@ -458,7 +500,7 @@ contract DebtManagerTest is Test {
         // Try to borrow more than max, should cap at max
         debtManager.borrowUsdc(20000e6);
 
-        (uint256 _aave,) = debtManager.getUserDebt(user1);
+        (uint256 _aave, ) = debtManager.getUserDebt(user1);
         assertEq(_aave, 13000e6);
     }
 
@@ -487,16 +529,27 @@ contract DebtManagerTest is Test {
         // Setup: deposit, borrow, then repay
         uint256 collateralAmount = 10 ether;
         uint256 borrowAmount = 5000e6;
-        
+
         _depositWETH(user1, collateralAmount);
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
-        
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
+
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(borrowAmount);
 
         // vUsdc balance after borrow
-        uint256 balance = aave.getVariableDebt(address(debtManager), address(usdc));
+        uint256 balance = aave.getVariableDebt(
+            address(debtManager),
+            address(usdc)
+        );
         assertEq(balance, borrowAmount);
 
         // platform debt
@@ -507,13 +560,13 @@ contract DebtManagerTest is Test {
 
         // Now repay
         uint256 repayAmount = 2010e6;
-        
+
         vm.startPrank(user1);
         usdc.approve(address(debtManager), repayAmount);
-        
+
         vm.expectEmit(true, false, false, false);
         emit EventsLib.RepayUsdc(user1, repayAmount, 0);
-        
+
         debtManager.repayUsdc(repayAmount);
         vm.stopPrank();
 
@@ -522,12 +575,15 @@ contract DebtManagerTest is Test {
         uint256 newBorrowBalance = balance - aaveCut;
 
         // vUsdc balance after repay
-        uint256 balanceAfter = aave.getVariableDebt(address(debtManager), address(usdc));
+        uint256 balanceAfter = aave.getVariableDebt(
+            address(debtManager),
+            address(usdc)
+        );
         assertEq(balanceAfter, newBorrowBalance);
 
         // Debt should be reduced
-        (uint256 aaveDebt,) = debtManager.getPlatformDebt();
-        (uint256 userAaveDebt,) = debtManager.getUserDebt(user1);
+        (uint256 aaveDebt, ) = debtManager.getPlatformDebt();
+        (uint256 userAaveDebt, ) = debtManager.getUserDebt(user1);
         assertEq(userAaveDebt, aaveDebt);
 
         // Revenue
@@ -545,15 +601,23 @@ contract DebtManagerTest is Test {
         // Setup borrow
         uint256 collateralAmount = 10 ether;
         uint256 borrowAmount = 5000e6;
-        
+
         _depositWETH(user1, collateralAmount);
-        _setUserAccountData(address(debtManager), 20000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
-        
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
+
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(borrowAmount);
 
-        (uint256 userAaveDebt,) = debtManager.getUserDebt(user1);
+        (uint256 userAaveDebt, ) = debtManager.getUserDebt(user1);
 
         // Try to repay more than debt
         uint256 maxRepay = userAaveDebt * 2;
@@ -562,7 +626,7 @@ contract DebtManagerTest is Test {
         debtManager.repayUsdc(maxRepay); // Should only repay actual debt
         vm.stopPrank();
 
-        (uint256 _aaveDebt,) = debtManager.getUserDebt(user1);
+        (uint256 _aaveDebt, ) = debtManager.getUserDebt(user1);
         assertEq(_aaveDebt, 0);
     }
 
@@ -578,15 +642,23 @@ contract DebtManagerTest is Test {
         uint256 depositAmount = 10 ether;
         _depositWETH(user1, depositAmount);
 
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
 
         assertEq(
-            aave.getSupplyBalance(address(debtManager), address(weth)), 
+            aave.getSupplyBalance(address(debtManager), address(weth)),
             depositAmount
         );
 
         uint256 redeemAmount = 5 ether;
-        
+
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.redeemCollateral(address(weth), redeemAmount, false);
@@ -596,7 +668,7 @@ contract DebtManagerTest is Test {
             depositAmount - redeemAmount
         );
         assertEq(
-            aave.getSupplyBalance(address(debtManager), address(weth)), 
+            aave.getSupplyBalance(address(debtManager), address(weth)),
             5 ether
         );
 
@@ -611,27 +683,41 @@ contract DebtManagerTest is Test {
             debtManager.getCollateralBalanceOfUser(user1, address(weth)),
             0
         );
-        assertEq(
-            aave.getSupplyBalance(address(debtManager), address(weth)), 
-            0
-        );
+        assertEq(aave.getSupplyBalance(address(debtManager), address(weth)), 0);
     }
 
     function test_RedeemCollateral_Success_ETH() public {
         uint256 depositAmount = 2 ether;
 
         vm.deal(user1, depositAmount);
-        
+
         vm.prank(user1);
         debtManager.depositCollateralETH{value: depositAmount}(depositAmount);
 
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
 
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(0)), depositAmount);
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(weth)), depositAmount);
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(0)),
+            depositAmount
+        );
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(weth)),
+            depositAmount
+        );
 
         // balance check
-        uint256 balance = aave.getSupplyBalance(address(debtManager), address(weth));
+        uint256 balance = aave.getSupplyBalance(
+            address(debtManager),
+            address(weth)
+        );
         assertEq(balance, depositAmount);
 
         // redeem
@@ -641,8 +727,14 @@ contract DebtManagerTest is Test {
         vm.prank(user1);
         debtManager.redeemCollateral(address(weth), redeemAmount, true);
 
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(0)), redeemAmount);
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(weth)), redeemAmount);
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(0)),
+            redeemAmount
+        );
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(weth)),
+            redeemAmount
+        );
 
         // balance check
         balance = aave.getSupplyBalance(address(debtManager), address(weth));
@@ -675,16 +767,30 @@ contract DebtManagerTest is Test {
         wbtc.approve(address(debtManager), depositAmountWbtc);
         debtManager.depositCollateralERC20(address(wbtc), depositAmountWbtc);
         vm.stopPrank();
-        
-        _setUserAccountData(address(debtManager), 20000e8, 0, 12000e8, 8000, 7500, type(uint256).max);
-        
+
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            12000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
+
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(10000e6); // Borrow $10k
 
-        uint256 wethBal = debtManager.getCollateralBalanceOfUser(user1, address(weth));
+        uint256 wethBal = debtManager.getCollateralBalanceOfUser(
+            user1,
+            address(weth)
+        );
         assertEq(wethBal, depositAmountWeth);
-        uint256 wbtcBal = debtManager.getCollateralBalanceOfUser(user1, address(wbtc));
+        uint256 wbtcBal = debtManager.getCollateralBalanceOfUser(
+            user1,
+            address(wbtc)
+        );
         assertEq(wbtcBal, depositAmountWbtc);
 
         // user account data
@@ -702,9 +808,15 @@ contract DebtManagerTest is Test {
         assertEq(totalDebtOwed, 10050 ether);
 
         // max Withdrawal amount
-        uint256 maxWeth = debtManager.getUserMaxCollateralWithdrawAmount(user1, address(weth));
+        uint256 maxWeth = debtManager.getUserMaxCollateralWithdrawAmount(
+            user1,
+            address(weth)
+        );
         assertEq(maxWeth, 0.8 ether);
-        uint256 maxWbtc = debtManager.getUserMaxCollateralWithdrawAmount(user1, address(wbtc));
+        uint256 maxWbtc = debtManager.getUserMaxCollateralWithdrawAmount(
+            user1,
+            address(wbtc)
+        );
         assertEq(maxWbtc, 0.075e8);
 
         // Try to redeem all Weth collateral (should be possible as wont break HF)
@@ -713,9 +825,15 @@ contract DebtManagerTest is Test {
         debtManager.redeemCollateral(address(weth), depositAmountWeth, false);
 
         // Should still have some collateral left to maintain HF
-        uint256 remainingWeth = debtManager.getCollateralBalanceOfUser(user1, address(weth));
+        uint256 remainingWeth = debtManager.getCollateralBalanceOfUser(
+            user1,
+            address(weth)
+        );
         assertEq(remainingWeth, 0);
-        uint256 remainingWbtc = debtManager.getCollateralBalanceOfUser(user1, address(wbtc));
+        uint256 remainingWbtc = debtManager.getCollateralBalanceOfUser(
+            user1,
+            address(wbtc)
+        );
         assertEq(remainingWbtc, depositAmountWbtc);
     }
 
@@ -740,9 +858,17 @@ contract DebtManagerTest is Test {
         // Setup user with liquidatable position
         uint256 collateralAmount = 10 ether; // $20k
         _depositWETH(user2, collateralAmount);
-        
+
         // Borrow close to limit
-        _setUserAccountData(address(debtManager), 20000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(10000e6);
@@ -761,18 +887,27 @@ contract DebtManagerTest is Test {
         // Now user should be liquidatable
         // Liquidator repays debt
         uint256 repayAmount = 6000e6;
-        
+
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
-        
+
         vm.expectEmit(true, true, true, false);
-        emit EventsLib.Liquidated(liquidator, user2, address(weth), repayAmount, 0);
-        
+        emit EventsLib.Liquidated(
+            liquidator,
+            user2,
+            address(weth),
+            repayAmount,
+            0
+        );
+
         debtManager.liquidate(user2, address(weth), repayAmount, false);
         vm.stopPrank();
 
         // User's collateral should be reduced
-        uint256 remainingCollateral = debtManager.getCollateralBalanceOfUser(user2, address(weth));
+        uint256 remainingCollateral = debtManager.getCollateralBalanceOfUser(
+            user2,
+            address(weth)
+        );
         assertLt(remainingCollateral, collateralAmount);
         assertEq(remainingCollateral, 6.2125 ether);
 
@@ -785,7 +920,8 @@ contract DebtManagerTest is Test {
         uint256 earn = debtManager.getLiquidationRevenueSpecific(address(weth));
         assertEq(earn, expectedEarn);
 
-        LiquidationEarnings[] memory liquidationEarnings = debtManager.getLiquidationRevenue();
+        LiquidationEarnings[] memory liquidationEarnings = debtManager
+            .getLiquidationRevenue();
         assertEq(liquidationEarnings[0].amount, expectedEarn);
         assertEq(liquidationEarnings[0].token, "WETH");
     }
@@ -799,7 +935,15 @@ contract DebtManagerTest is Test {
         debtManager.depositCollateralETH{value: depositAmount}(depositAmount);
 
         // Borrow close to limit
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(10000e6);
@@ -810,22 +954,34 @@ contract DebtManagerTest is Test {
         // Now user should be liquidatable
         // Liquidator repays debt
         uint256 repayAmount = 5000e6;
-        
+
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
-        
+
         vm.expectEmit(true, true, true, false);
-        emit EventsLib.Liquidated(liquidator, user2, address(weth), repayAmount, 0);
-        
+        emit EventsLib.Liquidated(
+            liquidator,
+            user2,
+            address(weth),
+            repayAmount,
+            0
+        );
+
         debtManager.liquidate(user2, address(weth), repayAmount, true);
         vm.stopPrank();
 
         // User's collateral should be reduced
         uint256 expectedRemaining = 6.2125 ether;
-        uint256 remainingCollateral = debtManager.getCollateralBalanceOfUser(user2, address(weth));
+        uint256 remainingCollateral = debtManager.getCollateralBalanceOfUser(
+            user2,
+            address(weth)
+        );
         assertLt(remainingCollateral, depositAmount);
         assertEq(remainingCollateral, expectedRemaining);
-        remainingCollateral = debtManager.getCollateralBalanceOfUser(user2, address(0));
+        remainingCollateral = debtManager.getCollateralBalanceOfUser(
+            user2,
+            address(0)
+        );
         assertLt(remainingCollateral, depositAmount);
         assertEq(remainingCollateral, expectedRemaining);
 
@@ -838,7 +994,8 @@ contract DebtManagerTest is Test {
         uint256 earn = debtManager.getLiquidationRevenueSpecific(address(weth));
         assertEq(earn, expectedEarn);
 
-        LiquidationEarnings[] memory liquidationEarnings = debtManager.getLiquidationRevenue();
+        LiquidationEarnings[] memory liquidationEarnings = debtManager
+            .getLiquidationRevenue();
         assertEq(liquidationEarnings[0].amount, expectedEarn);
         assertEq(liquidationEarnings[0].token, "WETH");
     }
@@ -848,7 +1005,15 @@ contract DebtManagerTest is Test {
         uint256 collateralAmount = 10 ether;
         _depositWETH(user2, collateralAmount);
 
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
 
         // get user LTV & check if liquidatable
         uint256 userLtv = debtManager.userLTV(user2);
@@ -865,8 +1030,16 @@ contract DebtManagerTest is Test {
         // Setup liquidatable position with small collateral
         uint256 collateralAmount = 1 ether;
         _depositWETH(user2, collateralAmount);
-        
-        _setUserAccountData(address(debtManager), 2000e8, 0, 1300e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            2000e8,
+            0,
+            1300e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(1200e6);
@@ -877,7 +1050,7 @@ contract DebtManagerTest is Test {
         // Try to liquidate more than available collateral
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), 10000e6);
-        
+
         vm.expectRevert(ErrorsLib.DebtManager__InsufficientCollateral.selector);
         debtManager.liquidate(user2, address(weth), 10000e6, false);
         vm.stopPrank();
@@ -893,9 +1066,17 @@ contract DebtManagerTest is Test {
         // Setup user with liquidatable position
         uint256 collateralAmount = 1 ether; // $2k
         _depositWETH(user2, collateralAmount);
-        
+
         // Borrow close to limit
-        _setUserAccountData(address(debtManager), 2000e8, 0, 1500e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            2000e8,
+            0,
+            1500e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(1200e6);
@@ -906,10 +1087,10 @@ contract DebtManagerTest is Test {
         // Now user should be liquidatable
         // Liquidator repays debt
         uint256 repayAmount = 30e6;
-        
+
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
-        
+
         vm.expectRevert(ErrorsLib.DebtManager__BreaksHealthFactor.selector);
         debtManager.liquidate(user2, address(weth), repayAmount, false);
 
@@ -922,8 +1103,16 @@ contract DebtManagerTest is Test {
         // Simulate some revenue
         uint256 depositAmount = 10 ether;
         _depositWETH(user2, depositAmount);
-        
-        _setUserAccountData(address(debtManager), 20000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(10000e6);
@@ -933,27 +1122,36 @@ contract DebtManagerTest is Test {
 
         // Liquidator repays debt
         uint256 repayAmount = 5000e6;
-        
+
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
         debtManager.liquidate(user2, address(weth), repayAmount, false);
         vm.stopPrank();
 
-        uint256 revenueBefore = debtManager.getLiquidationRevenueSpecific(address(weth));
+        uint256 revenueBefore = debtManager.getLiquidationRevenueSpecific(
+            address(weth)
+        );
         assertGt(revenueBefore, 0);
 
         // Withdraw revenue
         uint256 wethBalBefore = weth.balanceOf(treasury);
-        
+
         vm.expectEmit(true, false, false, false);
-        emit EventsLib.RevenueWithdrawn(treasury, address(weth), revenueBefore, 0);
-        
+        emit EventsLib.RevenueWithdrawn(
+            treasury,
+            address(weth),
+            revenueBefore,
+            0
+        );
+
         debtManager.withdrawRevenue(treasury, address(weth), revenueBefore);
 
         uint256 wethBalAfter = weth.balanceOf(treasury);
         assertEq(wethBalAfter - wethBalBefore, revenueBefore);
 
-        uint256 revenueAfter = debtManager.getLiquidationRevenueSpecific(address(weth));
+        uint256 revenueAfter = debtManager.getLiquidationRevenueSpecific(
+            address(weth)
+        );
         assertEq(revenueAfter, 0);
     }
 
@@ -961,15 +1159,23 @@ contract DebtManagerTest is Test {
         // Simulate some revenue
         uint256 depositAmount = 10 ether;
         _depositWETH(user2, depositAmount);
-        
-        _setUserAccountData(address(debtManager), 20000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user2);
         debtManager.borrowUsdc(10000e6);
 
         // Simulate some repayments to generate revenue
         uint256 repayAmount = 2010e6;
-        
+
         vm.startPrank(user2);
         usdc.approve(address(debtManager), repayAmount);
         debtManager.repayUsdc(repayAmount);
@@ -980,10 +1186,15 @@ contract DebtManagerTest is Test {
 
         // Withdraw revenue
         uint256 usdcBalBefore = usdc.balanceOf(treasury);
-        
+
         vm.expectEmit(true, false, false, false);
-        emit EventsLib.RevenueWithdrawn(treasury, address(usdc), revenueBefore, 1);
-        
+        emit EventsLib.RevenueWithdrawn(
+            treasury,
+            address(usdc),
+            revenueBefore,
+            1
+        );
+
         debtManager.withdrawRevenue(treasury, address(usdc), revenueBefore);
 
         uint256 usdcBalAfter = usdc.balanceOf(treasury);
@@ -995,10 +1206,14 @@ contract DebtManagerTest is Test {
 
     function test_WithdrawRevenue_RevertsOnInsufficientRevenue() public {
         // Repayment Revenue
-        vm.expectRevert(ErrorsLib.DebtManager__InsufficientAmountToWithdraw.selector);
+        vm.expectRevert(
+            ErrorsLib.DebtManager__InsufficientAmountToWithdraw.selector
+        );
         debtManager.withdrawRevenue(treasury, address(weth), 1 ether);
         // Liquidation Revenue
-        vm.expectRevert(ErrorsLib.DebtManager__InsufficientAmountToWithdraw.selector);
+        vm.expectRevert(
+            ErrorsLib.DebtManager__InsufficientAmountToWithdraw.selector
+        );
         debtManager.withdrawRevenue(treasury, address(usdc), 1e6);
     }
 
@@ -1010,7 +1225,10 @@ contract DebtManagerTest is Test {
     function test_WithdrawRevenue_RevertOnInvalidToken() public {
         MockERC20 tokenx = new MockERC20("Token X", "xTok", 8);
         vm.expectRevert(
-            abi.encodeWithSelector(ErrorsLib.DebtManager__TokenNotSupported.selector, address(tokenx))
+            abi.encodeWithSelector(
+                ErrorsLib.DebtManager__TokenNotSupported.selector,
+                address(tokenx)
+            )
         );
         debtManager.withdrawRevenue(treasury, address(tokenx), 1 ether);
     }
@@ -1025,7 +1243,7 @@ contract DebtManagerTest is Test {
 
     function test_GetAccountCollateralValue_MultipleTokens() public {
         _depositWETH(user1, 5 ether); // $10k
-        
+
         vm.startPrank(user1);
         wbtc.approve(address(debtManager), 1e8);
         debtManager.depositCollateralERC20(address(wbtc), 1e8); // $40k
@@ -1037,12 +1255,23 @@ contract DebtManagerTest is Test {
 
     function test_GetCollateralAmount_CalculatesCorrectly() public view {
         uint256 repayValue = 1000e18; // $1000
-        uint256 collateralAmount = debtManager.getCollateralAmount(address(weth), repayValue);
+        uint256 collateralAmount = debtManager.getCollateralAmount(
+            address(weth),
+            repayValue
+        );
         assertEq(collateralAmount, 0.5 ether);
     }
 
     function test_GetPlatformLltvAndLtv_ReturnsCorrectValue() public {
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
 
         (uint256 lltv, uint256 ltv) = debtManager.getPlatformLltvAndLtv();
         assertEq(lltv, 0.7e18);
@@ -1060,8 +1289,16 @@ contract DebtManagerTest is Test {
     function test_GetUserHealthFactor_CalculatesCorrectly() public {
         uint256 collateralAmount = 1 ether; // $20k
         _depositWETH(user1, collateralAmount);
-        
-        _setUserAccountData(address(debtManager), 2000e8, 0, 1500e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            2000e8,
+            0,
+            1500e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(1200e6); // Borrow $1.2k
@@ -1087,8 +1324,16 @@ contract DebtManagerTest is Test {
     function test_IsLiquidatable_ReturnsTrueWhenAboveLTV() public {
         uint256 collateralAmount = 1 ether;
         _depositWETH(user1, collateralAmount);
-        
-        _setUserAccountData(address(debtManager), 2000e8, 0, 15000e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            2000e8,
+            0,
+            15000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(1200e6);
@@ -1102,8 +1347,16 @@ contract DebtManagerTest is Test {
     function test_UserLTV_CalculatesCorrectly() public {
         uint256 collateralAmount = 1 ether; // $2k
         _depositWETH(user1, collateralAmount);
-        
-        _setUserAccountData(address(debtManager), 2000e8, 0, 1500e8, 8000, 7500, type(uint256).max);
+
+        _setUserAccountData(
+            address(debtManager),
+            2000e8,
+            0,
+            1500e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(1200e6); // Borrow $1.2k
@@ -1120,7 +1373,9 @@ contract DebtManagerTest is Test {
         // fetch wbtc value for 2.5 tokens
         uint256 amount = 2.5e8;
         uint256 value = debtManager.getUsdValue(address(wbtc), amount);
-        uint256 expectedValue = (amount * uint256(WBTC_PRICE) * ADDITIONAL_FEED_PRECISION) / 1e8;
+        uint256 expectedValue = (amount *
+            uint256(WBTC_PRICE) *
+            ADDITIONAL_FEED_PRECISION) / 1e8;
         assertEq(value, expectedValue);
     }
 
@@ -1141,17 +1396,18 @@ contract DebtManagerTest is Test {
 
     function test_GetUserSuppliedCollateralAmount_FullData() public {
         // deposit Weth
-        uint256 collateralAmount = 10 ether;        
+        uint256 collateralAmount = 10 ether;
         _depositWETH(user1, collateralAmount);
         // deposit wbtc
         uint256 depositAmount = 1e8;
         vm.startPrank(user1);
-        wbtc.approve(address(debtManager), depositAmount);        
+        wbtc.approve(address(debtManager), depositAmount);
         debtManager.depositCollateralERC20(address(wbtc), depositAmount);
         vm.stopPrank();
 
         // check
-        UserCollateral[] memory userCollateral = debtManager.getUserSuppliedCollateralAmount(user1);
+        UserCollateral[] memory userCollateral = debtManager
+            .getUserSuppliedCollateralAmount(user1);
         assertEq(userCollateral[0].token, "WETH");
         assertEq(userCollateral[0].amount, collateralAmount);
         assertEq(userCollateral[1].token, "WBTC");
@@ -1159,7 +1415,15 @@ contract DebtManagerTest is Test {
     }
 
     function test_GetMaxWithdrawableAmount_RevertOnZeroCollateral() public {
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
 
         vm.expectRevert(ErrorsLib.DebtManager__InsufficientCollateral.selector);
         debtManager.getUserMaxCollateralWithdrawAmount(user1, address(wbtc));
@@ -1167,7 +1431,10 @@ contract DebtManagerTest is Test {
 
     function test_GetCollateralToSeize_CalculatesCorrectly() public view {
         uint256 repayValue = 1000e18; // $1000
-        uint256 collateralToSeize = debtManager.getCollateralAmountLiquidate(address(weth), repayValue);
+        uint256 collateralToSeize = debtManager.getCollateralAmountLiquidate(
+            address(weth),
+            repayValue
+        );
         // calculation: (1000 / 2000) * 1.05 = 0.525 ETH
         assertEq(collateralToSeize, 0.525 ether);
     }
@@ -1240,9 +1507,17 @@ contract DebtManagerTest is Test {
 
         uint256 collateralAmount = 10 ether;
         _depositWETH(user1, collateralAmount);
-        
-        _setUserAccountData(address(debtManager), 20000e8, 0, 13000e8, 8000, 7500, type(uint256).max);
-        
+
+        _setUserAccountData(
+            address(debtManager),
+            20000e8,
+            0,
+            13000e8,
+            8000,
+            7500,
+            type(uint256).max
+        );
+
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
         debtManager.borrowUsdc(5000e6);
@@ -1262,7 +1537,10 @@ contract DebtManagerTest is Test {
         MockERC20 newCollateral = new MockERC20("Token X", "xTok", 18);
 
         debtManager.addCollateralAsset(address(newCollateral));
-        assertEq(debtManager.checkIfTokenSupported(address(newCollateral)), true);
+        assertEq(
+            debtManager.checkIfTokenSupported(address(newCollateral)),
+            true
+        );
     }
 
     function test_AddCollateral_RevertsForNonOwner() public {
@@ -1373,7 +1651,10 @@ contract DebtManagerTest is Test {
         debtManager.depositCollateralERC20(address(wbtc), depositAmount);
         vm.stopPrank();
 
-        assertEq(debtManager.getCollateralBalanceOfUser(user1, address(wbtc)), depositAmount);
+        assertEq(
+            debtManager.getCollateralBalanceOfUser(user1, address(wbtc)),
+            depositAmount
+        );
     }
 
     function test_UnPauseContract_RevertsForNonOwner() public {
@@ -1394,5 +1675,4 @@ contract DebtManagerTest is Test {
         debtManager.depositCollateralERC20(address(weth), amount);
         vm.stopPrank();
     }
-
 }

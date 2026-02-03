@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-01-27 08:24:49</td>
+            <td class="headerValue">2026-02-03 11:20:50</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -243,12 +243,12 @@
 <span id="L181"><span class="lineNum">     181</span>              :     /// @param asset The address of the asset</span>
 <span id="L182"><span class="lineNum">     182</span>              :     /// @return variable debt amount</span>
 <span id="L183"><span class="lineNum">     183</span>              : </span>
-<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">       23172 :     function getVariableDebt(</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">       23114 :     function getVariableDebt(</span></span>
 <span id="L185"><span class="lineNum">     185</span>              :         address custodian,</span>
 <span id="L186"><span class="lineNum">     186</span>              :         address asset</span>
 <span id="L187"><span class="lineNum">     187</span>              :     ) public view returns (uint256) {</span>
-<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">       23172 :         IPool.ReserveData memory reserve = pool.getReserveData(asset);</span></span>
-<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">       23172 :         return IERC20(reserve.variableDebtTokenAddress).balanceOf(custodian);</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">       23114 :         IPool.ReserveData memory reserve = pool.getReserveData(asset);</span></span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">       23114 :         return IERC20(reserve.variableDebtTokenAddress).balanceOf(custodian);</span></span>
 <span id="L190"><span class="lineNum">     190</span>              :     }</span>
 <span id="L191"><span class="lineNum">     191</span>              : </span>
 <span id="L192"><span class="lineNum">     192</span>              :     /// @notice Get supply balance</span>
@@ -268,10 +268,10 @@
 <span id="L206"><span class="lineNum">     206</span>              :     /// @param asset The address of the asset</span>
 <span id="L207"><span class="lineNum">     207</span>              :     /// @return price The asset price in USD</span>
 <span id="L208"><span class="lineNum">     208</span>              : </span>
-<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">       54848 :     function getAssetPrice(address asset) public view returns (uint256 price) {</span></span>
-<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">       54848 :         price = oracle.getAssetPrice(asset);</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">       54705 :     function getAssetPrice(address asset) public view returns (uint256 price) {</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">       54705 :         price = oracle.getAssetPrice(asset);</span></span>
 <span id="L211"><span class="lineNum">     211</span>              :         // check price</span>
-<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">       54848 :         if (price == 0) {</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">       54705 :         if (price == 0) {</span></span>
 <span id="L213"><span class="lineNum">     213</span> <span class="tlaUNC tlaBgUNC">           0 :             revert ErrorsLib.Aave__InvalidPrice();</span></span>
 <span id="L214"><span class="lineNum">     214</span>              :         }</span>
 <span id="L215"><span class="lineNum">     215</span>              :     }</span>
@@ -280,12 +280,12 @@
 <span id="L218"><span class="lineNum">     218</span>              :     /// @param asset The address of the asset</span>
 <span id="L219"><span class="lineNum">     219</span>              :     /// @return liquidationBonus The asset liquidation bonus, wad 1e18</span>
 <span id="L220"><span class="lineNum">     220</span>              : </span>
-<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC tlaBgGNC">         193 :     function getAssetLiquidationBonus(</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC tlaBgGNC">         185 :     function getAssetLiquidationBonus(</span></span>
 <span id="L222"><span class="lineNum">     222</span>              :         address asset</span>
 <span id="L223"><span class="lineNum">     223</span>              :     ) public view returns (uint256 liquidationBonus) {</span>
-<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">         193 :         (, , , uint256 _liquidationBonus, , , , , , ) = poolDataProvider</span></span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">         185 :         (, , , uint256 _liquidationBonus, , , , , , ) = poolDataProvider</span></span>
 <span id="L225"><span class="lineNum">     225</span>              :             .getReserveConfigurationData(asset);</span>
-<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         193 :         liquidationBonus =</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         185 :         liquidationBonus =</span></span>
 <span id="L227"><span class="lineNum">     227</span>              :             (_liquidationBonus * BASE_PRECISION) /</span>
 <span id="L228"><span class="lineNum">     228</span>              :             PERCENT_PRECISION; // wad (1e18)</span>
 <span id="L229"><span class="lineNum">     229</span>              :     }</span>
