@@ -900,7 +900,7 @@ contract DebtManagerTest is Test {
             0
         );
 
-        debtManager.liquidate(user2, address(weth), repayAmount, false);
+        debtManager.liquidate(user2, address(usdc), address(weth), repayAmount, false);
         vm.stopPrank();
 
         // User's collateral should be reduced
@@ -967,7 +967,7 @@ contract DebtManagerTest is Test {
             0
         );
 
-        debtManager.liquidate(user2, address(weth), repayAmount, true);
+        debtManager.liquidate(user2, address(usdc), address(weth), repayAmount, true);
         vm.stopPrank();
 
         // User's collateral should be reduced
@@ -1023,7 +1023,7 @@ contract DebtManagerTest is Test {
 
         vm.prank(liquidator);
         vm.expectRevert(ErrorsLib.DebtManager__UserNotLiquidatable.selector);
-        debtManager.liquidate(user2, address(weth), 1000e6, false);
+        debtManager.liquidate(user2, address(usdc), address(weth), 1000e6, false);
     }
 
     function test_Liquidate_RevertsOnInsufficientCollateral() public {
@@ -1052,14 +1052,14 @@ contract DebtManagerTest is Test {
         usdc.approve(address(debtManager), 10000e6);
 
         vm.expectRevert(ErrorsLib.DebtManager__InsufficientCollateral.selector);
-        debtManager.liquidate(user2, address(weth), 10000e6, false);
+        debtManager.liquidate(user2, address(usdc), address(weth), 10000e6, false);
         vm.stopPrank();
     }
 
     function test_Liquidate_RevertsOnZeroAmount() public {
         vm.prank(user1);
         vm.expectRevert(ErrorsLib.DebtManager__NeedsMoreThanZero.selector);
-        debtManager.liquidate(user1, address(weth), 0, false);
+        debtManager.liquidate(user1, address(usdc), address(weth), 0, false);
     }
 
     function test_Liquidate_RevertsOnBreakingHF() public {
@@ -1092,7 +1092,7 @@ contract DebtManagerTest is Test {
         usdc.approve(address(debtManager), repayAmount);
 
         vm.expectRevert(ErrorsLib.DebtManager__BreaksHealthFactor.selector);
-        debtManager.liquidate(user2, address(weth), repayAmount, false);
+        debtManager.liquidate(user2, address(usdc), address(weth), repayAmount, false);
 
         vm.stopPrank();
     }
@@ -1125,7 +1125,7 @@ contract DebtManagerTest is Test {
 
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
-        debtManager.liquidate(user2, address(weth), repayAmount, false);
+        debtManager.liquidate(user2, address(usdc), address(weth), repayAmount, false);
         vm.stopPrank();
 
         uint256 revenueBefore = debtManager.getLiquidationRevenueSpecific(

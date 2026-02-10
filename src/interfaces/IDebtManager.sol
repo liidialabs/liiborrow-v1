@@ -190,13 +190,15 @@ interface IDebtManager {
     /**
      * @notice Liquidate an undercollateralized user by repaying part of their debt and seizing collateral.
      * @param user The address of the user to liquidate.
-     * @param collateral The collateral token to seize.
+     * @param debtAsset: The asset that was borrowed
+     * @param collateralAsset The collateral token to seize.
      * @param repayAmount The amount of USDC to repay on the user's behalf.
      * @param isEth True if seized collateral should be returned as ETH.
      */
     function liquidate(
         address user,
-        address collateral,
+        address debtAsset,
+        address collateralAsset,
         uint256 repayAmount,
         bool isEth
     ) external;
@@ -229,12 +231,12 @@ interface IDebtManager {
     /**
      * @notice Convert a USD repay value into an amount of collateral including liquidation bonus.
      * @param collateral The collateral token address.
-     * @param valueOfRepayAmount The USD repay value (1e18 = 1 USD).
+     * @param collateralAmount The USD repay value (1e18 = 1 USD).
      * @return The amount of collateral to seize for the given repay value.
      */
     function getCollateralAmountLiquidate(
         address collateral,
-        uint256 valueOfRepayAmount
+        uint256 collateralAmount
     ) external view returns (uint256);
 
     /**

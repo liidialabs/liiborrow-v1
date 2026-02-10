@@ -42,9 +42,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     address private constant ETH = address(0);
     uint256 private constant AAVE_LTV_PRECISION = 1e4; // 10000 = 100%
     uint256 private constant PLATFORM_AAVE_LTV_DIFF = 1e3; // 1000 = 10%
-    uint256 private constant DEFAULT_LIQUIDATION_CLOSE_FACTOR = 0.5e18; // wad (1e18), e.g. 50% = 0.5e18
-    uint256 private constant MAX_LIQUIDATION_CLOSE_FACTOR = 1e18; // wad (1e18), e.g. 100% = 1e18
-    uint256 private constant CLOSE_FACTOR_HF_THRESHOLD = 0.95e18; // wad (1e18), e.g. 95% = 0.95e18
+    uint256 private constant CLOSE_FACTOR = 0.5e18; // wad (1e18), e.g. 50% = 0.5e18
     uint256 private constant MIN_HEALTH_FACTOR = 1e18;
     uint256 private constant DANGER_ZONE = 1.1e18;
     uint256 private constant BASE_PRECISION = 1e18;
@@ -469,20 +467,22 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     /**
      * @dev Liquidation only happens when user is liquidatable & if it improves their health factor
      * @param user: The address of the user to liquidate
-     * @param collateral: The asset to recieve
+     * @param debtAsset: The asset that was borrowed
+     * @param collateralAsset: The asset to recieve
      * @param repayAmount: The amount to pay onbehalf of user
      * @param isEth: Boolean to indicate if the collateral being redeemed is ETH
      */
     function liquidate(
         address user,
-        address collateral,
+        address debtAsset,
+        address collateralAsset,
         uint256 repayAmount,
         bool isEth
     )
         external
         override
         nonReentrant
-        isSupportedToken(collateral)
+        isSupportedToken(collateralAsset)
         moreThanZero(repayAmount)
         whenNotPaused
     {
@@ -493,41 +493,32 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
         // check amount to repay & user's hf
         (uint256 userAaveDebt, ) = _debtOwed(user);
-        uint256 currentHFactor = _healthFactor(user);
-
         // apply close factor
-        uint256 closeFactor;
-        if (currentHFactor >= CLOSE_FACTOR_HF_THRESHOLD) {
-            closeFactor = DEFAULT_LIQUIDATION_CLOSE_FACTOR;
-        } else {
-            closeFactor = MAX_LIQUIDATION_CLOSE_FACTOR;
-        }
-        uint256 maxRepay = (userAaveDebt * closeFactor) / BASE_PRECISION;
+        uint256 maxRepay = (userAaveDebt * CLOSE_FACTOR) / BASE_PRECISION;
         if (repayAmount > maxRepay) {
             repayAmount = maxRepay;
         }
 
         // collateral to seize
-        uint256 valueOfRepayAmount = _getUsdValue(USDC, repayAmount);
         uint256 amountOfCollateralToSeize = getCollateralAmountLiquidate(
-            collateral,
-            valueOfRepayAmount
+            collateralAsset,
+            repayAmount
         );
         amountOfCollateralToSeize =
             (amountOfCollateralToSeize * (BASE_PRECISION + s_liquidationFee)) /
             BASE_PRECISION; // add liquidation fee
 
         if (
-            s_collateralDeposited[user][collateral] < amountOfCollateralToSeize
+            s_collateralDeposited[user][collateralAsset] < amountOfCollateralToSeize
         ) {
             revert ErrorsLib.DebtManager__InsufficientCollateral();
         }
 
         // transfer
-        IERC20(USDC).safeTransferFrom(msg.sender, address(this), repayAmount);
-        IERC20(USDC).approve(address(pool), repayAmount);
+        IERC20(debtAsset).safeTransferFrom(msg.sender, address(this), repayAmount);
+        IERC20(debtAsset).approve(address(pool), repayAmount);
         pool.repay({
-            asset: USDC,
+            asset: debtAsset,
             amount: repayAmount,
             interestRateMode: 2,
             onBehalfOf: address(this)
@@ -542,14 +533,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         if (isEth) {
             s_collateralDeposited[user][ETH] -= amountOfCollateralToSeize;
         }
-        s_collateralDeposited[user][collateral] -= amountOfCollateralToSeize;
-        _redeemCollateral(collateral, amountOfCollateralToSeize, true, isEth);
+        s_collateralDeposited[user][collateralAsset] -= amountOfCollateralToSeize;
+        _redeemCollateral(collateralAsset, amountOfCollateralToSeize, true, isEth);
         _revertIfHealthFactorIsBroken(user);
 
         emit Liquidated(
             msg.sender,
             user,
-            collateral,
+            collateralAsset,
             repayAmount,
             uint32(block.timestamp)
         );
@@ -1047,13 +1038,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     /**
      * @notice Returns the amount of collateral to seize during liquidation based on USD value
      * @param collateral: The collateral asset address
-     * @param valueOfRepayAmount: The USD value of the amount being repaid
+     * @param collateralAmount: The USDC amount being repaid
      * @return amount: The amount of collateral to seize
      */
     function getCollateralAmountLiquidate(
         address collateral,
-        uint256 valueOfRepayAmount
+        uint256 collateralAmount
     ) public view override returns (uint256) {
+        uint256 valueOfRepayAmount = _getUsdValue(USDC, collateralAmount);
         uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral);
         uint256 valueOfCollateralToSeize = (valueOfRepayAmount *
             liquidationBonus) / BASE_PRECISION;

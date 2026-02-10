@@ -537,7 +537,7 @@ contract DebtManagerFuzzTest is Test {
         vm.startPrank(liquidator);
         usdc.approve(address(debtManager), repayAmount);
         
-        try debtManager.liquidate(user, address(weth), repayAmount, false) {
+        try debtManager.liquidate(user, address(usdc), address(weth), repayAmount, false) {
             uint256 hfAfter = debtManager.getHealthFactor(user);
             assertGt(hfAfter, hfBefore, "Liquidation should improve HF above 1");
             assertGe(hfAfter, MIN_HEALTH_FACTOR, "HF should be improved to 1 or above");
