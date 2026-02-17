@@ -221,10 +221,10 @@ contract Aave {
     function getAssetLiquidationBonus(
         address asset
     ) public view returns (uint256 liquidationBonus) {
-        (, , , uint256 _liquidationBonus, , , , , , ) = poolDataProvider
-            .getReserveConfigurationData(asset);
+        (, , , uint256 _liquidationBonus, , , , , , ) = 
+            poolDataProvider.getReserveConfigurationData(asset);
         liquidationBonus =
             (_liquidationBonus * BASE_PRECISION) /
-            PERCENT_PRECISION; // wad (1e18)
+            PERCENT_PRECISION; // transform to wad (1e18)
     }
 }
