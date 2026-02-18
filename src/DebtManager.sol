@@ -469,7 +469,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @param user: The address of the user to liquidate
      * @param debtAsset: The asset that was borrowed
      * @param collateralAsset: The asset to recieve
-     * @param repayAmount: The amount to pay onbehalf of user
+     * @param repayAmount: The amount to pay onbehalf of user, in USDC
      * @param isEth: Boolean to indicate if the collateral being redeemed is ETH
      */
     function liquidate(
@@ -541,6 +541,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             msg.sender,
             user,
             collateralAsset,
+            amountOfCollateralToSeize,
             repayAmount,
             uint32(block.timestamp)
         );
@@ -1038,14 +1039,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     /**
      * @notice Returns the amount of collateral to seize during liquidation based on USD value
      * @param collateral: The collateral asset address
-     * @param collateralAmount: The USDC amount being repaid
+     * @param debtAmount: The USDC amount being repaid
      * @return amount: The amount of collateral to seize
      */
     function getCollateralAmountLiquidate(
         address collateral,
-        uint256 collateralAmount
+        uint256 debtAmount
     ) public view override returns (uint256) {
-        uint256 valueOfRepayAmount = _getUsdValue(USDC, collateralAmount);
+        uint256 valueOfRepayAmount = _getUsdValue(USDC, debtAmount);
         uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral);
         uint256 valueOfCollateralToSeize = (valueOfRepayAmount *
             liquidationBonus) / BASE_PRECISION;
@@ -1378,13 +1379,19 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         userCollateral = new UserCollateral[](len);
 
         for (uint256 i = 0; i < len; i++) {
-            address tokenAddress = s_collateralTokens[i];
-            uint256 amount = s_collateralDeposited[user][tokenAddress];
-            if (amount == 0) continue;
+            address _tokenAddress = s_collateralTokens[i];
+            uint256 _amount = s_collateralDeposited[user][_tokenAddress];
+            if (_amount == 0) continue;
 
-            string memory symbol = IERC20Metadata(tokenAddress).symbol();
+            uint256 _value = _getUsdValue(_tokenAddress, _amount);
+            string memory _symbol = IERC20Metadata(_tokenAddress).symbol();
 
-            userCollateral[i] = UserCollateral({token: symbol, amount: amount});
+            userCollateral[i] = UserCollateral({
+                symbol: _symbol, 
+                collateral: _tokenAddress, 
+                amount: _amount,
+                value: _value
+            });
         }
     }
 
