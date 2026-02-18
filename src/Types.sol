@@ -10,8 +10,10 @@ enum HealthStatus {
 
 // User collateral type and amount
 struct UserCollateral {
-    string token;
+    string symbol;
+    address collateral;
     uint256 amount;
+    uint256 value;
 }
 
 // Token type and amount earned from liquidation
