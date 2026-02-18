@@ -38,14 +38,16 @@ interface IDebtManager {
      * @param by The liquidator address.
      * @param from The user being liquidated.
      * @param token The collateral token seized.
-     * @param amount The repay amount (USDC) used for liquidation.
+     * @param collateralSeized The collateral amount to be seized.
+     * @param debtCovered The repay amount (USDC) used for liquidation.
      * @param timestamp The block timestamp when liquidation occurred.
      */
     event Liquidated(
         address indexed by,
         address indexed from,
         address indexed token,
-        uint256 amount,
+        uint256 collateralSeized,
+        uint256 debtCovered,
         uint32 timestamp
     );
 
@@ -231,12 +233,12 @@ interface IDebtManager {
     /**
      * @notice Convert a USD repay value into an amount of collateral including liquidation bonus.
      * @param collateral The collateral token address.
-     * @param collateralAmount The USD repay value (1e18 = 1 USD).
+     * @param debtAmount The USD repay value (1e18 = 1 USD).
      * @return The amount of collateral to seize for the given repay value.
      */
     function getCollateralAmountLiquidate(
         address collateral,
-        uint256 collateralAmount
+        uint256 debtAmount
     ) external view returns (uint256);
 
     /**
