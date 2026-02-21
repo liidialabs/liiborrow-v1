@@ -6,6 +6,7 @@ import { MockAaveOracle } from "../test/mocks/MockAaveOracle.sol";
 import { MockPoolDataProvider } from "../test/mocks/MockPoolDataProvider.sol";
 import { Script } from "forge-std/Script.sol";
 import { MockERC20 } from "../test/mocks/MockERC20.sol";
+import "forge-std/console2.sol";
 
 contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
@@ -42,7 +43,9 @@ contract HelperConfig is Script {
     uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
 
     constructor() {
-        if (block.chainid == 11_155_111) {
+        console2.log("Chain ID:", block.chainid);
+        
+        if (block.chainid == 111_55_111) {
             activeNetworkConfig = getSepoliaEthConfig();
         } else if (block.chainid == 8453) {
             activeNetworkConfig = getBaseMainConfig();
@@ -74,8 +77,8 @@ contract HelperConfig is Script {
             usdc: 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8,
             pool: 0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951,
             oracle: 0x2da88497588bf89281816106C7259e31AF45a663,
-            dataProvider: address(1), // TODO: replace with actual data provider address
-            deployerKey: vm.envUint("PRIVATE_KEY")
+            dataProvider: 0x3e9708d80f7B3e43118013075F7e95CE3AB31F31,
+            deployerKey: vm.envUint("PRIVATE_KEY_DEPLOYER")
         });
     }
 
