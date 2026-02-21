@@ -33,21 +33,49 @@ coverage-report :; forge coverage --report lcov && genhtml lcov.info -o coverage
 
 anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 1
 
-NETWORK_ARGS := --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) --broadcast
+# NETWORK_ARGS := --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) --broadcast -vvvv
+NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) --broadcast -vvvv
 
+# Set NETWORK_ARGS based on the network specified in ARGS for deployment
+# make deploy ARGS="--network sepolia"
 ifeq ($(findstring --network sepolia,$(ARGS)),--network sepolia)
-	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 endif
 
 ifeq ($(findstring --network mainnet,$(ARGS)),--network mainnet)
-	NETWORK_ARGS := --rpc-url $(MAINNET_RPC_URL) --private-key $(PRIVATE_KEY) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+	NETWORK_ARGS := --rpc-url $(MAINNET_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 endif
 
-estimate: 
-	@forge script script/DeployRare24.s.sol:DeployRare24 --rpc-url $(MAINNET_RPC_URL) -vvvv
+# quick deploy and interaction scripts for testnet testing
 
 deploy:
-	@forge script script/DeployRare24.s.sol:DeployRare24 $(NETWORK_ARGS)
+	@forge script script/1_DeployDebtManager.s.sol:DeployDebtManager $(NETWORK_ARGS)
 
-deploy-market:
-	@forge script script/DeployMarketplace.s.sol:DeployMarketplace $(NETWORK_ARGS)
+supply: 
+	@forge script script/2_Supply.s.sol:Supply $(NETWORK_ARGS)
+
+borrow:
+	@forge script script/3_Borrow.s.sol:Borrow $(NETWORK_ARGS)
+
+repay:
+	@forge script script/4_Repay.s.sol:Repay $(NETWORK_ARGS)
+
+withdraw:
+	@forge script script/5_Withdraw.s.sol:Withdraw $(NETWORK_ARGS)
+
+# quick deploy and interaction scripts for gas estimation on Sepolia
+
+sim-deploy:
+	@forge script script/1_DeployDebtManager.s.sol:DeployDebtManager --rpc-url $(SEPOLIA_RPC_URL)
+
+sim-supply:
+	@forge script script/2_Supply.s.sol:Supply --rpc-url $(SEPOLIA_RPC_URL)
+
+sim-borrow:
+	@forge script script/3_Borrow.s.sol:Borrow --rpc-url $(SEPOLIA_RPC_URL)
+
+sim-repay:
+	@forge script script/4_Repay.s.sol:Repay --rpc-url $(SEPOLIA_RPC_URL)
+
+sim-withdraw:
+	@forge script script/5_Withdraw.s.sol:Withdraw --rpc-url $(SEPOLIA_RPC_URL)
