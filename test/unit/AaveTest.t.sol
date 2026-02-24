@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 
 import { Aave } from "../../src/Aave.sol";
 import { ErrorsLib } from "../../src/libraries/ErrorsLib.sol";
-import { MockAavePool } from "../mocks/MockAavePool.sol";
+import { MockAaveV3Pool } from "../mocks/MockAaveV3Pool.sol";
 import { MockAaveOracle } from "../mocks/MockAaveOracle.sol";
 import { MockPoolDataProvider } from "../mocks/MockPoolDataProvider.sol";
 import { MockERC20 } from "../mocks/MockERC20.sol";
@@ -15,7 +15,7 @@ import { HealthStatus } from "../../src/Types.sol";
 
 contract AaveTest is Test {
     Aave public aave;
-    MockAavePool public mockPool;
+    MockAaveV3Pool public mockPool;
     MockAaveOracle public mockOracle;
     MockPoolDataProvider public mockPoolDataProvider;
     MockERC20 public weth;
@@ -33,7 +33,7 @@ contract AaveTest is Test {
 
     function setUp() external {
         // Deploy mocks
-        mockPool = new MockAavePool();
+        mockPool = new MockAaveV3Pool();
         mockOracle = new MockAaveOracle();
         mockPoolDataProvider = new MockPoolDataProvider();
         weth = new MockERC20("WETH", "WETH", 18);
