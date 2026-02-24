@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {DebtManager} from "../../src/DebtManager.sol";
 import {Aave} from "../../src/Aave.sol";
-import {MockAavePool} from "../mocks/MockAavePool.sol";
+import {MockAaveV3Pool} from "../mocks/MockAaveV3Pool.sol";
 import {MockAaveOracle} from "../mocks/MockAaveOracle.sol";
 import {MockPoolDataProvider} from "../mocks/MockPoolDataProvider.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
@@ -23,7 +23,7 @@ contract DebtManagerTest is Test {
     IDebtManager public debtManager;
     DebtManager public _debtManager;
     Aave public aave;
-    MockAavePool public mockPool;
+    MockAaveV3Pool public mockPool;
     MockAaveOracle public mockOracle;
     MockPoolDataProvider public mockPoolDataProvider;
     MockERC20 public usdc;
@@ -60,7 +60,7 @@ contract DebtManagerTest is Test {
         treasury = makeAddr("treasury");
 
         // Deploy mocks
-        mockPool = new MockAavePool();
+        mockPool = new MockAaveV3Pool();
         mockOracle = new MockAaveOracle();
         mockPoolDataProvider = new MockPoolDataProvider();
         wbtc = new MockERC20("Wrapped Bitcoin", "WBTC", 8);
@@ -1062,7 +1062,7 @@ contract DebtManagerTest is Test {
         debtManager.liquidate(user1, address(usdc), address(weth), 0, false);
     }
 
-    function test_Liquidate_RevertsOnBreakingHF() public {
+    function test_Liquidate_NotEnough_RevertsOnBreakingHF() public {
         // Setup user with liquidatable position
         uint256 collateralAmount = 1 ether; // $2k
         _depositWETH(user2, collateralAmount);
@@ -1081,11 +1081,11 @@ contract DebtManagerTest is Test {
         vm.prank(user2);
         debtManager.borrowUsdc(1200e6);
 
-        // Simulate price crash - ETH drops to $1400
+        // Simulate price crash - ETH drops to $1700
         mockOracle.setAssetPrice(address(weth), 1700e8);
 
         // Now user should be liquidatable
-        // Liquidator repays debt
+        // Liquidator repays debt, not enough to improve HF
         uint256 repayAmount = 30e6;
 
         vm.startPrank(liquidator);
@@ -1254,12 +1254,12 @@ contract DebtManagerTest is Test {
     }
 
     function test_GetCollateralAmount_CalculatesCorrectly() public view {
-        uint256 repayValue = 1000e18; // $1000
+        uint256 repayValue = 1000e8; // $1000
         uint256 collateralAmount = debtManager.getCollateralAmount(
-            address(weth),
+            address(usdc),
             repayValue
         );
-        assertEq(collateralAmount, 0.5 ether);
+        assertEq(collateralAmount, 1000e6);
     }
 
     function test_GetPlatformLltvAndLtv_ReturnsCorrectValue() public {
@@ -1381,8 +1381,8 @@ contract DebtManagerTest is Test {
 
     function test_GetAssetPrice_FetchCorrectly() public {
         // fetch wbtc price
-        uint256 price = debtManager.getAssetPrice(address(wbtc));
-        assertEq(price, uint256(WBTC_PRICE));
+        uint256 price = debtManager.getAssetPrice(address(usdc));
+        assertEq(price, uint256(USDC_PRICE));
 
         // revert on not supported token
         MockERC20 newCollateral = new MockERC20("Token X", "xTok", 18);
@@ -1432,10 +1432,10 @@ contract DebtManagerTest is Test {
     }
 
     function test_GetCollateralToSeize_CalculatesCorrectly() public view {
-        uint256 repayValue = 1000e6; // $1000
-        uint256 collateralToSeize = debtManager.getCollateralAmountLiquidate(
+        uint256 repayAmount = 1000e6; // 1000 USDC
+        uint256 collateralToSeize = debtManager.getCollateralAmountToSeize(
             address(weth),
-            repayValue
+            repayAmount
         );
         // calculation: (1000 / 2000) * 1.05 = 0.525 ETH
         assertEq(collateralToSeize, 0.525 ether);
