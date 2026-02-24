@@ -39,7 +39,7 @@ NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) -
 # Set NETWORK_ARGS based on the network specified in ARGS for deployment
 # make deploy ARGS="--network sepolia"
 ifeq ($(findstring --network sepolia,$(ARGS)),--network sepolia)
-	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --gas-price 50000000000 --slow --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 endif
 
 ifeq ($(findstring --network mainnet,$(ARGS)),--network mainnet)
@@ -48,8 +48,11 @@ endif
 
 # quick deploy and interaction scripts for testnet testing
 
+deploy-config:
+	@forge script script/1a_DeployAndConfigureMocks.s.sol:DeployAndConfigureMocks $(NETWORK_ARGS)
+
 deploy:
-	@forge script script/1_DeployDebtManager.s.sol:DeployDebtManager $(NETWORK_ARGS)
+	@forge script script/1b_DeployDebtManager.s.sol:DeployDebtManager $(NETWORK_ARGS)
 
 supply: 
 	@forge script script/2_Supply.s.sol:Supply $(NETWORK_ARGS)
@@ -65,8 +68,11 @@ withdraw:
 
 # quick deploy and interaction scripts for gas estimation on Sepolia
 
+sim-deployConfig:
+	@forge script script/1a_DeployAndConfigureMocks.s.sol:DeployAndConfigureMocks --rpc-url $(SEPOLIA_RPC_URL)
+
 sim-deploy:
-	@forge script script/1_DeployDebtManager.s.sol:DeployDebtManager --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/1b_DeployDebtManager.s.sol:DeployDebtManager --rpc-url $(SEPOLIA_RPC_URL)
 
 sim-supply:
 	@forge script script/2_Supply.s.sol:Supply --rpc-url $(SEPOLIA_RPC_URL)
