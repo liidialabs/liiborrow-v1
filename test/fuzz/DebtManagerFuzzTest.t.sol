@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {console2} from "forge-std/console2.sol";
 import {DebtManager} from "../../src/DebtManager.sol";
 import {Aave} from "../../src/Aave.sol";
-import {MockAavePool} from "../mocks/MockAavePool.sol";
+import {MockAaveV3Pool} from "../mocks/MockAaveV3Pool.sol";
 import {MockAaveOracle} from "../mocks/MockAaveOracle.sol";
 import {MockERC20} from "../mocks/MockERC20.sol";
 import {MockWETH} from "../mocks/MockWETH.sol";
@@ -24,7 +24,7 @@ import { EventsLib } from "../../src/libraries/EventsLib.sol";
 contract DebtManagerFuzzTest is Test {
     DebtManager public debtManager;
     Aave public aave;
-    MockAavePool public mockPool;
+    MockAaveV3Pool public mockPool;
     MockAaveOracle public mockOracle;
     MockPoolDataProvider public mockDataProvider;
     MockERC20 public usdc;
@@ -62,7 +62,7 @@ contract DebtManagerFuzzTest is Test {
         user = makeAddr("user");
 
         // Deploy mocks
-        mockPool = new MockAavePool();
+        mockPool = new MockAaveV3Pool();
         mockOracle = new MockAaveOracle();
         mockDataProvider = new MockPoolDataProvider();
         wbtc = new MockERC20("Wrapped Bitcoin", "WBTC", 8);
