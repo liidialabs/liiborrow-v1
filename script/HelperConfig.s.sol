@@ -1,23 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { MockAavePool } from "../test/mocks/MockAavePool.sol";
-import { MockAaveOracle } from "../test/mocks/MockAaveOracle.sol";
-import { MockPoolDataProvider } from "../test/mocks/MockPoolDataProvider.sol";
 import { Script } from "forge-std/Script.sol";
-import { MockERC20 } from "../test/mocks/MockERC20.sol";
-import "forge-std/console2.sol";
 
 contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
-
-    uint8 public constant FEED_DECIMALS = 8;
-    uint8 public constant WETH_DECIMALS = 18;
-    uint8 public constant WBTC_DECIMALS = 8;
-    uint8 public constant USDC_DECIMALS = 6;
-    uint256 public constant ETH_USD_PRICE = 2000e8;
-    uint256 public constant BTC_USD_PRICE = 40000e8;
-    uint256 public constant USDC_USD_PRICE = 1e8;
 
     struct NetworkConfig {
         address cbeth;
@@ -31,27 +18,16 @@ contract HelperConfig is Script {
         uint256 deployerKey;
     }
 
-    MockERC20 public cbeth;
-    MockERC20 public cbbtc;
-    MockERC20 public weth;
-    MockERC20 public wbtc;
-    MockERC20 public usdc;
-    MockAavePool public pool;
-    MockAaveOracle public oracle;
-    MockPoolDataProvider public dataProvider;
+    address public constant debtManagerAddress = 0xCb737805008c5a01928DD572A164F5b8001c562d;
+    address public constant aaveAddress = 0x2853eA59358977011a8Bf653ab00d975871e3D6e;
 
-    uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-
-    constructor() {
-        console2.log("Chain ID:", block.chainid);
-        
+    constructor() {        
         if (block.chainid == 111_55_111) {
-            activeNetworkConfig = getSepoliaEthConfig();
-        } else if (block.chainid == 8453) {
+            // activeNetworkConfig = getSepoliaEthConfig();
+            activeNetworkConfig = getMockConfigs();
+        } else if (block.chainid == 84532) {
             activeNetworkConfig = getBaseMainConfig();
-        } else {
-            activeNetworkConfig = getOrCreateAnvilEthConfig();
-        }
+        } 
     }
 
     function getBaseMainConfig() public view returns (NetworkConfig memory mainnetNetworkConfig) {
@@ -82,47 +58,17 @@ contract HelperConfig is Script {
         });
     }
 
-    function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory anvilNetworkConfig) {
-        // Check to see if we set an active network config
-        if (activeNetworkConfig.pool != address(0)) {
-            return activeNetworkConfig;
-        }
-
-        vm.startBroadcast();
-        // CBETH
-        cbeth = new MockERC20("Coinbase ETH", "CBETH", WETH_DECIMALS);
-        // CBBTC
-        cbbtc = new MockERC20("Coinbase BTC", "CBBTC", WBTC_DECIMALS);
-        // WETH
-        weth = new MockERC20("Wrapped ETH", "WETH", WETH_DECIMALS);
-        // WBTC
-        wbtc = new MockERC20("Wrapped BTC", "WBTC", WBTC_DECIMALS);
-        // USDC
-        usdc = new MockERC20("USD Coin", "USDC", USDC_DECIMALS);
-        // Pool
-        pool = new MockAavePool();
-        // Oracle
-        oracle = new MockAaveOracle();
-        // Set prices
-        oracle.setAssetPrice(address(cbeth), ETH_USD_PRICE);
-        oracle.setAssetPrice(address(cbbtc), BTC_USD_PRICE);
-        oracle.setAssetPrice(address(weth), ETH_USD_PRICE);
-        oracle.setAssetPrice(address(wbtc), BTC_USD_PRICE);
-        oracle.setAssetPrice(address(usdc), USDC_USD_PRICE);
-        vm.stopBroadcast();
-        // Data Provider
-        dataProvider = new MockPoolDataProvider();
-
-        anvilNetworkConfig = NetworkConfig({
-            cbeth: address(cbeth),
-            cbbtc: address(cbbtc),
-            weth: address(weth),
-            wbtc: address(wbtc),
-            usdc: address(usdc),
-            pool: address(pool),
-            oracle: address(oracle),
-            dataProvider: address(dataProvider),
-            deployerKey: DEFAULT_ANVIL_PRIVATE_KEY
+    function getMockConfigs() public view returns (NetworkConfig memory createdNetworkConfig) { 
+        createdNetworkConfig = NetworkConfig({
+            cbeth: address(0),
+            cbbtc: address(0),
+            weth: 0x394A1145Cc4480cD047ad065a5Ece23D4fcC2E1d,
+            wbtc: address(0),
+            usdc: 0xf8340a3BB21282Af32B567e0ACE1Cc5c4eF63a73,
+            pool: 0xDB79AF69617bFcB71D55E7575bFbb1De86151eF9,
+            oracle: 0x10C979d0f556799262CF3934e211BDA4e4E9074A,
+            dataProvider: 0x939d6989D15CF96F6E1cE8b6067d016fbf0D7C67,
+            deployerKey: vm.envUint("PRIVATE_KEY_DEPLOYER")
         });
     }
 }
