@@ -236,7 +236,7 @@ interface IDebtManager {
      * @param debtAmount The USD repay value (1e18 = 1 USD).
      * @return The amount of collateral to seize for the given repay value.
      */
-    function getCollateralAmountLiquidate(
+    function getCollateralAmountToSeize(
         address collateral,
         uint256 debtAmount
     ) external view returns (uint256);
