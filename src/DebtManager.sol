@@ -500,7 +500,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         }
 
         // collateral to seize
-        uint256 amountOfCollateralToSeize = getCollateralAmountLiquidate(
+        uint256 amountOfCollateralToSeize = getCollateralAmountToSeize(
             collateralAsset,
             repayAmount
         );
@@ -767,13 +767,16 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             withdrawalValue = valueCollateral;
         }
 
+        // convert from base 1e18 to 1e8
+        withdrawalValue = (withdrawalValue * USD_PRECISION) / BASE_PRECISION; 
+
         upto = _valueToAmount(collateral, withdrawalValue);
     }
 
     /**
      * @dev Calculate the amount of collateral based on USD value
      * @param collateral The collateral asset address
-     * @param amountValue The USD value of the amount
+     * @param amountValue The USD value of the amount, in 1e8
      * @return amount The amount of collateral
      */
     function _valueToAmount(
@@ -783,9 +786,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         uint256 price = _getAssetPrice(collateral);
         uint8 tokenDecimals = IERC20Metadata(collateral).decimals();
 
-        amount =
-            (amountValue * uint256(10 ** tokenDecimals)) /
-            (price * ADDITIONAL_FEED_PRECISION);
+        amount = (amountValue * uint256(10 ** tokenDecimals)) / price;
     }
 
     /**
@@ -1042,14 +1043,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @param debtAmount: The USDC amount being repaid
      * @return amount: The amount of collateral to seize
      */
-    function getCollateralAmountLiquidate(
+    function getCollateralAmountToSeize(
         address collateral,
         uint256 debtAmount
     ) public view override returns (uint256) {
-        uint256 valueOfRepayAmount = _getUsdValue(USDC, debtAmount);
-        uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral);
+        uint256 valueOfRepayAmount = _getUsdValue(USDC, debtAmount); // in USD to 1e18
+        uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral); // in 1e18
         uint256 valueOfCollateralToSeize = (valueOfRepayAmount *
-            liquidationBonus) / BASE_PRECISION;
+            liquidationBonus) / (BASE_PRECISION * ADDITIONAL_FEED_PRECISION); // in USD to 1e8
         return _valueToAmount(collateral, valueOfCollateralToSeize);
     }
 
