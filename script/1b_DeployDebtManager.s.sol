@@ -15,7 +15,7 @@ contract DeployDebtManager is Script {
     DebtManager public debtManager;
     HelperConfig public helperConfig;
 
-    function run() external returns (Aave, DebtManager) {
+    function run() external {
         // Deploy HelperConfig to get active network config
         helperConfig = new HelperConfig();
         // Get token, pool & oracle addresses from the active network config
@@ -51,6 +51,5 @@ contract DeployDebtManager is Script {
         console2.log("Deployed Aave at:", address(aave));
         console2.log("Deployed DebtManager at:", address(debtManager));
 
-        return (aave, debtManager);
     }
 }
