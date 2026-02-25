@@ -48,22 +48,22 @@ endif
 
 # quick deploy and interaction scripts for testnet testing
 
-deploy-config:
+deploy-config: 
 	@forge script script/1a_DeployAndConfigureMocks.s.sol:DeployAndConfigureMocks $(NETWORK_ARGS)
 
-deploy:
+deploy: 
 	@forge script script/1b_DeployDebtManager.s.sol:DeployDebtManager $(NETWORK_ARGS)
 
 supply: 
 	@forge script script/2_Supply.s.sol:Supply $(NETWORK_ARGS)
 
-borrow:
+borrow: 
 	@forge script script/3_Borrow.s.sol:Borrow $(NETWORK_ARGS)
 
-repay:
+repay: 
 	@forge script script/4_Repay.s.sol:Repay $(NETWORK_ARGS)
 
-withdraw:
+withdraw: 
 	@forge script script/5_Withdraw.s.sol:Withdraw $(NETWORK_ARGS)
 
 # quick deploy and interaction scripts for gas estimation on Sepolia
