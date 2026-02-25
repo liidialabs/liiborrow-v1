@@ -18,7 +18,7 @@ contract HelperConfig is Script {
         uint256 deployerKey;
     }
 
-    address public constant debtManagerAddress = 0xCb737805008c5a01928DD572A164F5b8001c562d;
+    address public constant debtManagerAddress = 0x3f26685991D09eCd40227Efb7649Ca2A371708CC;
     address public constant aaveAddress = 0x2853eA59358977011a8Bf653ab00d975871e3D6e;
 
     constructor() {        
