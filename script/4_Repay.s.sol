@@ -29,17 +29,21 @@ contract Repay is Script {
             address usdc,
             ,,,
         ) = helperConfig.activeNetworkConfig();
+        (
+            address debtManagerAddress,
+            address aaveAddress
+        ) = helperConfig.activeCoreConfig();
 
         // Initialize the DebtManager & Aave contract
-        debtManager = DebtManager(payable(helperConfig.debtManagerAddress()));
-        aave = Aave(helperConfig.aaveAddress());
+        debtManager = DebtManager(payable(debtManagerAddress));
+        aave = Aave(aaveAddress);
         asset = MockERC20(usdc);
 
         address USER = vm.addr(userKey);
 
         /* ------------------------------------------------------------------------- */
 
-        uint256 balanceBefore = aave.getVariableDebt(helperConfig.debtManagerAddress(), usdc);
+        uint256 balanceBefore = aave.getVariableDebt(debtManagerAddress, usdc);
         (uint256 aaveDebt, uint256 totalDebt) = debtManager.getPlatformDebt();
 
         console2.log("Platform Variable Balance before repayment:", balanceBefore);
@@ -64,7 +68,7 @@ contract Repay is Script {
         // mint to user
         asset.mint(USER ,repayAmount);
         // approve USDC for repayment
-        asset.approve(helperConfig.debtManagerAddress(), repayAmount);
+        asset.approve(debtManagerAddress, repayAmount);
         // repay USDC debt
         debtManager.repayUsdc(repayAmount);
 
@@ -75,7 +79,7 @@ contract Repay is Script {
         /* ---------------------------------------------------------------------------------- */
 
         // Log platform's variable debt, total debt and protocol revenue after repayment
-        uint256 _balanceAfter = aave.getVariableDebt(helperConfig.debtManagerAddress(), usdc);
+        uint256 _balanceAfter = aave.getVariableDebt(debtManagerAddress, usdc);
         (uint256 _aaveDebt, uint256 _totalDebt) = debtManager.getPlatformDebt();
         uint256 revenue = debtManager.getProtocolRevenue();
 
@@ -92,11 +96,6 @@ contract Repay is Script {
         console2.log("User total debt:", _userTotalDebt);
         console2.log("User health factor:", _hf);
         console2.log("Total Debt Shares after repayment:", debtManager.getTotalDebtShares());
-
-        // Log protocol's health factor after repayment
-        (uint256 _protocolHf, HealthStatus _protocolStatus) = aave.getHealthFactor(helperConfig.debtManagerAddress());
-        console2.log("Protocol's health factor after repayment:", _protocolHf);
-        console2.log("Protocol's health status after repayment:", uint256(_protocolStatus));
     
     }
 }

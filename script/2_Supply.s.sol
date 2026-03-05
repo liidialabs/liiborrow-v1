@@ -14,9 +14,9 @@ import { MockAaveV3Pool } from "../test/mocks/MockAaveV3Pool.sol";
 contract Supply is Script {
     DebtManager private debtManager;
     Aave private aave;
-    HelperConfig public helperConfig;
-    MockERC20 public weth;
-    MockAaveV3Pool public mockPool;
+    HelperConfig private helperConfig;
+    MockERC20 private weth;
+    MockAaveV3Pool private mockPool;
 
     address private user; 
     
@@ -29,13 +29,17 @@ contract Supply is Script {
         (
             ,, address _weth,,, address _pool,,,
         ) = helperConfig.activeNetworkConfig();
+        (
+            address debtManagerAddress,
+            address aaveAddress
+        ) = helperConfig.activeCoreConfig();
 
         // user wallet
         user = vm.addr(userKey);
 
         // create contract instances
-        debtManager = DebtManager(payable(helperConfig.debtManagerAddress()));
-        aave = Aave(helperConfig.aaveAddress());
+        debtManager = DebtManager(payable(debtManagerAddress));
+        aave = Aave(aaveAddress);
         weth = MockERC20(_weth);
         mockPool = MockAaveV3Pool(_pool);
 

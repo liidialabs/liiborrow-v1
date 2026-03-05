@@ -6,33 +6,35 @@ import "forge-std/console2.sol";
 import { Aave } from  "../src/Aave.sol";
 import { DebtManager } from "../src/DebtManager.sol";
 import { HealthStatus } from "../src/Types.sol";
+import { HelperConfig } from "./HelperConfig.s.sol";
 
 /// @notice This script supplies ETH to the protocol
 contract Borrow is Script {
     DebtManager private debtManager;
     Aave private aave;
-
-    address private DebtManagerAddress = 0xFB56BcBB16eF411Ad25EE507d7c2430e561ae3E0;
-    address private WETH = 0x6de4964bfEbCa1848c74FeaA6736b14898DfDB0c;
+    HelperConfig private helperConfig;
     
     uint256 private borrowAmount = 1200e6;
     uint256 private USER = vm.envUint("PRIVATE_KEY_USER");
 
     function run() external {
+        // Deploy HelperConfig to get active network config
+        helperConfig = new HelperConfig();
+        (
+            ,, address weth,,,,,,
+        ) = helperConfig.activeNetworkConfig();
+        (
+            address debtManagerAddress,
+        ) = helperConfig.activeCoreConfig();
+
         // Initialize the DebtManager contract
-        debtManager = DebtManager(payable(DebtManagerAddress));
+        debtManager = DebtManager(payable(debtManagerAddress));
 
         vm.startBroadcast(USER);
 
-        uint32 nextAct = debtManager.getNextActivity(vm.addr(USER));
-        uint32 _now = uint32(block.timestamp);
-        console2.log("Next: %s", nextAct);
-        console2.log("Now: %s", _now);
-        console2.log("Can Borrow: %s", nextAct > _now);
-        console2.log("------------------------------------------------------------");
         uint256 hfBefore = debtManager.getHealthFactor(vm.addr(USER));
         (uint256 aaveDebtBefore, ) = debtManager.getUserDebt(vm.addr(USER));
-        uint256 balance = debtManager.getCollateralBalanceOfUser(vm.addr(USER), WETH);
+        uint256 balance = debtManager.getCollateralBalanceOfUser(vm.addr(USER), weth);
         console2.log("User collateral balance from DebtManager: %s WETH", balance / 1e18);
         console2.log("User Health Factor before borrow: %s", hfBefore);
         console2.log("User Debt before borrow: %s USDC", aaveDebtBefore / 1e6);

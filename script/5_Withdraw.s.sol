@@ -27,15 +27,19 @@ contract Withdraw is Script {
             address weth,
             ,,,,,
         ) = helperConfig.activeNetworkConfig();
+        (
+            address debtManagerAddress,
+            address aaveAddress
+        ) = helperConfig.activeCoreConfig();
 
         // Initialize the DebtManager & Aave contract
-        debtManager = DebtManager(payable(helperConfig.debtManagerAddress()));
-        aave = Aave(helperConfig.aaveAddress());
+        debtManager = DebtManager(payable(debtManagerAddress));
+        aave = Aave(aaveAddress);
 
         address USER = vm.addr(userKey);
 
         // Log protocol's supply balance in WETH after supplying
-        uint256 supplyBalance = aave.getSupplyBalance(helperConfig.debtManagerAddress(), weth);
+        uint256 supplyBalance = aave.getSupplyBalance(debtManagerAddress, weth);
         console2.log("Protocol's supply balance before in WETH:", supplyBalance);
 
         // Get and log user's supplied collateral after supplying
@@ -65,7 +69,7 @@ contract Withdraw is Script {
         console2.log("-----------------------------------------");
 
         // Log protocol's supply balance in WETH after supplying
-        supplyBalance = aave.getSupplyBalance(helperConfig.debtManagerAddress(), weth);
+        supplyBalance = aave.getSupplyBalance(debtManagerAddress, weth);
         console2.log("Protocol's supply balance after in WETH:", supplyBalance);
 
         // Get and log user's supplied collateral after supplying
