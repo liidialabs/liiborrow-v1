@@ -11,66 +11,85 @@ import {IPriceOracle} from "./interfaces/aave-v3/IPriceOracle.sol";
 import {ErrorsLib} from "./libraries/ErrorsLib.sol";
 import "./Types.sol";
 
-/*
+/**
  * @title Aave
- * @author Caleb Mokua
- * @description It handles fetching data from Aave
+ * @author Liidia Team
+ * @notice Facade contract for interacting with Aave V3 protocol.
+ * @dev Provides read-only wrappers around Aave's Pool, Oracle, and DataProvider
+ *      to fetch account data, prices, and liquidity information for the protocol.
+ *      All view functions return normalized values for use in the DebtManager.
  */
-
 contract Aave {
-    // STATE
-
+    /// @notice The Aave V3 Pool contract for supply/borrow operations.
     IPool public immutable pool;
+
+    /// @notice The Aave V3 Oracle for fetching asset prices.
     IPriceOracle public immutable oracle;
+
+    /// @notice The Aave V3 PoolDataProvider for reserve configuration data.
     IPoolDataProvider public immutable poolDataProvider;
+
+    /// @notice The USDC token address used as the debt asset.
     address public immutable USDC;
+
+    /// @notice The health status of the protocol's position (derived from Aave data).
     HealthStatus public healthStatus;
+
+    /// @notice Precision for health factor calculations (1e18 = 1.0 HF).
     uint256 private constant HF_PRECISION = 1e18;
+
+    /// @notice Base precision for percentage calculations (1e18 = 100%).
     uint256 private constant BASE_PRECISION = 1e18;
+
+    /// @notice Precision for percentage-based values (1e4 = 1%).
     uint256 private constant PERCENT_PRECISION = 1e4;
+
+    /// @notice Precision for USD prices (1e8 = 1 USD).
     uint256 private constant PRICE_PRECISION = 1e8;
+
+    /// @notice The decimal precision of the vToken (aToken/vToken) for the debt asset.
     uint8 public vTokenDecimals;
 
-    // CONSTRUCTOR
+    /// @notice Initializes the Aave contract with required protocol addresses.
+    /// @param _pool The Aave Pool address.
+    /// @param _oracle The Aave Oracle address.
+    /// @param _dataProvider The Aave PoolDataProvider address.
+    /// @param _usdc The USDC token address.
     constructor(
         address _pool,
         address _oracle,
         address _dataProvider,
         address _usdc
     ) {
-        // initialize Aave contracts
         pool = IPool(_pool);
         oracle = IPriceOracle(_oracle);
         poolDataProvider = IPoolDataProvider(_dataProvider);
-        // set USDC address
         USDC = _usdc;
-        // get usdc vToken decimals
         IPool.ReserveData memory reserve = pool.getReserveData(_usdc);
         vTokenDecimals = IERC20Metadata(reserve.variableDebtTokenAddress)
             .decimals();
     }
 
-    /// @notice Get Variable borrow APR
-    /// @return variableBorrowAPR The current variable borrow APR for USDC (ray - 1e27)
-
+    /// @notice Retrieves the current variable borrow APR for USDC from Aave.
+    /// @return variableBorrowAPR The current variable borrow rate in ray (1e27).
+    /// @dev This rate is dynamic and changes based on Aave's liquidity and utilization.
     function getVariableBorrowAPR()
         external
         view
         returns (uint256 variableBorrowAPR)
     {
         IPool.ReserveData memory reserve = pool.getReserveData(USDC);
-        return reserve.currentVariableBorrowRate; // ray (1e27)
+        return reserve.currentVariableBorrowRate;
     }
 
-    /// @notice Check max borrow for USDC
-    /// @param custodian The address DebtManager
-    /// @return collateralUSD Total collateral value supplied in USD
-    /// @return debtUSD Total debt value in USD
-    /// @return canBorrowUSD Amount of USD that can be borrowed
-    /// @return canBorrowUSDC Amount of USDC that can be borrowed
-    /// @return _currentLiquidationThreshold Current liquidation threshold (unit: 10000)
-    /// @return _ltv Loan to value ratio (unit: 10000)
-
+    /// @notice Fetches account data for a given custodian from Aave.
+    /// @param custodian The DebtManager address acting as custodian.
+    /// @return collateralUSD Total collateral value supplied in USD (1e8 = 1 USD).
+    /// @return debtUSD Total debt value in USD (1e8 = 1 USD).
+    /// @return canBorrowUSD Available borrow power in USD (1e8 = 1 USD).
+    /// @return canBorrowUSDC Available borrow power in USDC (in USDC units).
+    /// @return _currentLiquidationThreshold The liquidation threshold (unit: 10000, e.g., 8000 = 80%).
+    /// @return _ltv The loan-to-value ratio (unit: 10000, e.g., 7500 = 75%).
     function getUserAccountData(
         address custodian
     )
@@ -81,11 +100,10 @@ contract Aave {
             uint256 debtUSD,
             uint256 canBorrowUSD,
             uint256 canBorrowUSDC,
-            uint256 _currentLiquidationThreshold, // unit: 10000
-            uint256 _ltv // unit: 10000
+            uint256 _currentLiquidationThreshold,
+            uint256 _ltv
         )
     {
-        // 1e8 = 1 USD
         uint256 price = oracle.getAssetPrice(USDC);
         uint256 decimals = IERC20Metadata(USDC).decimals();
 
@@ -96,10 +114,8 @@ contract Aave {
             uint256 currentLiquidationThreshold,
             uint256 ltv,
 
-        ) = // HF
-            pool.getUserAccountData(custodian);
+        ) = pool.getUserAccountData(custodian);
 
-        // Convert to USD (8 decimals)
         collateralUSD = totalCollateralBase / PRICE_PRECISION;
         debtUSD = totalDebtBase / PRICE_PRECISION;
         canBorrowUSD = availableBorrowsBase / PRICE_PRECISION;
@@ -109,11 +125,10 @@ contract Aave {
         _ltv = ltv;
     }
 
-    /// @notice Get account HF & status
-    /// @param custodian The address DebtManager
-    /// @return hf Health factor of user's position
-    /// @return status Health status of user's position
-
+    /// @notice Calculates the health factor and status for a custodian position.
+    /// @param custodian The DebtManager address.
+    /// @return hf The health factor (1e18 = 1.0). Values < 1e18 indicate undercollateralization.
+    /// @return status The HealthStatus enum (Healthy/Danger/Liquidatable).
     function getHealthFactor(
         address custodian
     ) public view returns (uint256 hf, HealthStatus status) {
@@ -130,10 +145,10 @@ contract Aave {
         hf = healthFactor;
     }
 
-    /// @notice Check if can borrow more safely
-    /// @param amountToBorrow The amount of USDC to borrow
-    /// @param custodian The address DebtManager
-
+    /// @notice Validates that a borrow would not break the health factor requirement.
+    /// @dev Reverts if the new health factor would be below 1.1 or if borrow exceeds available liquidity.
+    /// @param amountToBorrow The amount of USDC to borrow.
+    /// @param custodian The DebtManager address.
     function revertIfHFBreaks(
         uint256 amountToBorrow,
         address custodian
@@ -150,13 +165,11 @@ contract Aave {
         uint256 price = oracle.getAssetPrice(USDC);
         uint256 decimals = IERC20Metadata(USDC).decimals();
 
-        // Checks
         uint256 amountInUsd = (amountToBorrow * price) / (10 ** decimals);
         if (amountInUsd > availableBorrowsBase) {
             revert ErrorsLib.Aave__ExceedsMaxBorrow();
         }
 
-        // Simulate new debt & calculate HF
         uint256 newDebtBase = totalDebtBase + amountInUsd;
         uint256 newHealthFactor = (totalCollateralBase *
             currentLiquidationThreshold *
@@ -167,20 +180,18 @@ contract Aave {
         }
     }
 
-    /// @notice Monitor risk level
-    /// @param custodian The address of DebtManager
-    /// @return bool True if at risk, false otherwise
-
+    /// @notice Checks if a custodian position is at risk of liquidation.
+    /// @param custodian The DebtManager address.
+    /// @return True if health factor < 1.1, indicating elevated risk.
     function isAtRisk(address custodian) public view returns (bool) {
         (, , , , , uint256 hf) = pool.getUserAccountData(custodian);
-        return hf < 1.1e18; // Warn if health factor below 1.2
+        return hf < 1.1e18;
     }
 
-    /// @notice Get variable debt token for an account
-    /// @param custodian The address of DebtManager
-    /// @param asset The address of the asset
-    /// @return variable debt amount
-
+    /// @notice Gets the variable debt balance for an account in a specific asset.
+    /// @param custodian The account address.
+    /// @param asset The asset address (e.g., USDC).
+    /// @return The variable debt amount in underlying token units.
     function getVariableDebt(
         address custodian,
         address asset
@@ -189,11 +200,10 @@ contract Aave {
         return IERC20(reserve.variableDebtTokenAddress).balanceOf(custodian);
     }
 
-    /// @notice Get supply balance
-    /// @param custodian The address of DebtManager
-    /// @param asset The address of the asset
-    /// @return supply balance amount
-
+    /// @notice Gets the supply (aToken) balance for an account in a specific asset.
+    /// @param custodian The account address.
+    /// @param asset The asset address (e.g., WETH).
+    /// @return The supply balance in underlying token units.
     function getSupplyBalance(
         address custodian,
         address asset
@@ -202,29 +212,28 @@ contract Aave {
         return IERC20(reserve.aTokenAddress).balanceOf(custodian);
     }
 
-    /// @notice Get an assets price in USD (1 USD = 1e8)
-    /// @param asset The address of the asset
-    /// @return price The asset price in USD
-
+    /// @notice Fetches the price of an asset from the Aave oracle.
+    /// @param asset The asset address.
+    /// @return price The asset price in USD (1e8 = 1 USD).
+    /// @dev Reverts if the price is zero or invalid.
     function getAssetPrice(address asset) public view returns (uint256 price) {
         price = oracle.getAssetPrice(asset);
-        // check price
         if (price == 0) {
             revert ErrorsLib.Aave__InvalidPrice();
         }
     }
 
-    /// @notice Get asset liquidation bonus
-    /// @param asset The address of the asset
-    /// @return liquidationBonus The asset liquidation bonus, wad 1e18
-
+    /// @notice Gets the liquidation bonus for a collateral asset.
+    /// @param asset The collateral asset address.
+    /// @return liquidationBonus The liquidation bonus as a wad (1e18 = 100%).
+    /// @dev For example, 1.05e18 means 5% bonus on top of collateral value.
     function getAssetLiquidationBonus(
         address asset
     ) public view returns (uint256 liquidationBonus) {
-        (, , , uint256 _liquidationBonus, , , , , , ) = 
+        (, , , uint256 _liquidationBonus, , , , , , ) =
             poolDataProvider.getReserveConfigurationData(asset);
         liquidationBonus =
             (_liquidationBonus * BASE_PRECISION) /
-            PERCENT_PRECISION; // transform to wad (1e18)
+            PERCENT_PRECISION;
     }
 }

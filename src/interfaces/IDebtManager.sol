@@ -192,7 +192,7 @@ interface IDebtManager {
     /**
      * @notice Liquidate an undercollateralized user by repaying part of their debt and seizing collateral.
      * @param user The address of the user to liquidate.
-     * @param debtAsset: The asset that was borrowed
+     * @param debtAsset The asset that was borrowed.
      * @param collateralAsset The collateral token to seize.
      * @param repayAmount The amount of USDC to repay on the user's behalf.
      * @param isEth True if seized collateral should be returned as ETH.

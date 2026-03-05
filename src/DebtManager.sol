@@ -21,70 +21,113 @@ import {IWETH} from "./interfaces/IWETH.sol";
 import {IDebtManager} from "./interfaces/IDebtManager.sol";
 import {HealthStatus, UserCollateral, LiquidationEarnings} from "./Types.sol";
 
-/*
- * @title GoLiquid
- * @author Caleb Mokua
- * @description It's a CDP (Collateralized Debt Position) Protocol built on top of Aave
+/**
+ * @title LiiBorrow
+ * @author Liidia Team
+ * @notice A CDP (Collateralized Debt Position) Protocol built on top of Aave V3.
+ * @dev Users can deposit collateral, borrow USDC, repay debt, and redeem collateral.
+ *      The protocol enforces health factor requirements to prevent undercollateralization.
+ *      Liquidation mechanisms exist to recover funds from undercollateralized positions.
+ *
+ * Precision Conventions:
+ * - USD values: 1e18 = 1 USD (wad)
+ * - USD prices from oracle: 1e8 = 1 USD
+ * - Percentages: 1e4 = 1%
+ * - APR/Fees: 1e18 = 100% (wad)
+ *
+ * Security Considerations:
+ * - Reentrancy protection on all state-changing functions
+ * - Access control via Ownable for admin functions
+ * - Health factor checks before/after critical operations
+ * - Cooldown period to prevent rapid position changes
  */
 
 contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
-    // Types
     using SafeERC20 for IERC20;
 
-    // State Variables
+    // Immutable Protocol Interfaces
 
+    /// @notice The Aave V3 Pool contract for supply/borrow operations.
     IPool public immutable pool;
+    /// @notice The WETH token interface for ETH wrapping/unwrapping.
     IWETH public immutable weth;
+    /// @notice The Aave facade contract for reading protocol data.
     Aave public immutable aave;
+    /// @notice Precision multiplier for vToken decimals (10^vTokenDecimals).
     uint256 private immutable VTOKEN_DEC_PRECISION;
+    /// @notice The USDC token address used as the debt/borrowable asset.
     address private immutable USDC;
 
+    // Protocol Constants
+
+    /// @notice Sentinel address representing native ETH (as opposed to WETH).
     address private constant ETH = address(0);
-    uint256 private constant AAVE_LTV_PRECISION = 1e4; // 10000 = 100%
-    uint256 private constant PLATFORM_AAVE_LTV_DIFF = 1e3; // 1000 = 10%
-    uint256 private constant CLOSE_FACTOR = 0.5e18; // wad (1e18), e.g. 50% = 0.5e18
+    /// @notice Aave's LTV precision (1e4 = 100%).
+    uint256 private constant AAVE_LTV_PRECISION = 1e4;
+    /// @notice Safety buffer subtracted from Aave's LTV/LLTV when calculating platform limits.
+    uint256 private constant PLATFORM_AAVE_LTV_DIFF = 1e3;
+    /// @notice Maximum portion of debt that can be repaid in a single liquidation (50%).
+    uint256 private constant CLOSE_FACTOR = 0.5e18;
+    /// @notice Minimum acceptable health factor (1.0). Positions below this are liquidatable.
     uint256 private constant MIN_HEALTH_FACTOR = 1e18;
+    /// @notice Health factor threshold for warning zone (1.1). Below this is considered risky.
     uint256 private constant DANGER_ZONE = 1.1e18;
+    /// @notice Base precision for wad-based calculations (1e18 = 1).
     uint256 private constant BASE_PRECISION = 1e18;
+    /// @notice Additional precision for oracle price feed calculations (1e10).
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    /// @notice USD price precision from oracle (1e8 = 1 USD).
     uint256 private constant USD_PRECISION = 1e8;
+    /// @notice USDC token decimals (6).
     uint256 private constant USDC_PRECISION = 1e6;
-    uint256 private constant BASE_APR = 0.005e18; // wad (1e18), e.g. 0.5% = 0.005e18
-    uint256 private constant BASE_BONUS = 0.01e18; // wad (1e18), e.g. 1% = 0.01e18
+    /// @notice Minimum protocol APR markup (0.5%).
+    uint256 private constant BASE_APR = 0.005e18;
+    /// @notice Base liquidation bonus awarded to liquidators (1%).
+    uint256 private constant BASE_BONUS = 0.01e18;
+    /// @notice Maximum cooldown period allowed (30 minutes).
     uint256 private constant MAX_COOLDOWN = 30 minutes;
 
+    // Protocol Configurable Parameters
+
+    /// @notice Cooldown period in seconds between user actions (deposit/repay).
     uint256 private s_coolDownPeriod = 10 minutes;
-    uint256 private s_liquidationFee = 0.01e18; // initial at 1%
+    /// @notice Liquidation fee charged on seized collateral (1% initially).
+    uint256 private s_liquidationFee = 0.01e18;
 
-    // platform ltv & lltv  based on aave's platform account data
+    // Protocol State
+
+    /// @notice Platform-wide loan-to-value ratio derived from Aave position (wad).
     uint256 private s_platformLtv;
+    /// @notice Platform-wide liquidation threshold derived from Aave position (wad).
     uint256 private s_platformLltv;
-
-    uint256 private aaveDebt; // in underlying asset (wad)
-    uint256 private totalDebt; // aave debt + protocol spread
-    uint256 private s_totalDebtShares; // abstract shares
-    uint256 private s_protocolRevenueAccrued; // in underlying asset (wad)
-    uint256 private protocolAPRMarkup = 0.005e18; // wad (1e18), e.g. 1% = 0.01e18
+    /// @notice Current debt owed to Aave in underlying asset units.
+    uint256 private aaveDebt;
+    /// @notice Total protocol debt (Aave debt + protocol APR markup).
+    uint256 private totalDebt;
+    /// @notice Total debt shares minted across all users.
+    uint256 private s_totalDebtShares;
+    /// @notice Accrued protocol revenue from interest spreads.
+    uint256 private s_protocolRevenueAccrued;
+    /// @notice Additional APR markup on top of Aave rate (0.5% initially).
+    uint256 private protocolAPRMarkup = 0.005e18;
+    /// @notice Current health status of the protocol's position.
     HealthStatus private healthStatus;
 
-    /// @dev Mapping of token address to price feed address
-    mapping(address collateralToken => bool isSupported)
-        private s_supportedCollateral;
-    /// @dev Enforce collateral token activity freezing
-    mapping(address collateralToken => bool isPaused)
-        private s_collateralPaused;
-    /// @dev Amount of collateral deposited by user
-    mapping(address user => mapping(address collateralToken => uint256 amount))
-        private s_collateralDeposited; // Tracks user's deposit position
-    /// @dev Amount of USDC borrowed
-    mapping(address user => uint256 amount) private s_userDebtShares; // Tracks user's debt position
-    /// @dev enforce s_coolDownPeriod after deposit deposit and repayment
+    /// @notice Mapping of supported collateral tokens.
+    mapping(address collateralToken => bool isSupported) private s_supportedCollateral;
+    /// @notice Mapping of paused collateral tokens.
+    mapping(address collateralToken => bool isPaused) private s_collateralPaused;
+    /// @notice User's deposited collateral amount per token.
+    mapping(address user => mapping(address collateralToken => uint256 amount)) private s_collateralDeposited;
+    /// @notice User's debt shares representing their debt position.
+    mapping(address user => uint256 amount) private s_userDebtShares;
+    /// @notice Timestamp when user cooldown expires (enforces time between actions).
     mapping(address user => uint32 nextActivity) private s_coolDown;
-    /// @dev total collateral supplied
+    /// @notice Total collateral supplied across all users per token.
     mapping(address collateral => uint256 amount) private s_totalColSupplied;
-    /// @dev Earnings through liquidation
+    /// @notice Accrued liquidation revenue per collateral token.
     mapping(address collateral => uint256 amount) private s_liquidationRevenue;
-    /// @dev If we know exactly how many tokens we have, we could make this immutable!
+    /// @notice List of all supported collateral token addresses.
     address[] private s_collateralTokens;
 
     // Modifiers
@@ -154,10 +197,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
     // External Functions
 
-    /**
-     * @param tokenCollateralAddress: The ERC20 token address of the collateral being deposited
-     * @param amountCollateral: The amount of collateral you're depositing
-     */
+    /// @notice Deposits an ERC20 token as collateral and supplies it to Aave.
+    /// @dev Caller must approve this contract to spend `tokenCollateralAddress` before calling.
+    ///      The collateral is supplied to Aave as per the protocol's strategy.
+    ///      Triggers a cooldown period for the user.
+    /// @param tokenCollateralAddress The ERC20 token address to use as collateral.
+    /// @param amountCollateral The amount of tokens to deposit (in token decimals).
     function depositCollateralERC20(
         address tokenCollateralAddress,
         uint256 amountCollateral
@@ -193,10 +238,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         });
     }
 
-    /**
-     * @dev Deposited ETH is wrapped into WETH before being supplied to Aave
-     * @param amountCollateral: The amount of collateral being deposited (ETH)
-     */
+    /// @notice Deposits native ETH as collateral by wrapping to WETH and supplying to Aave.
+    /// @dev ETH is wrapped into WETH via the WETH contract's deposit function.
+    ///      Collateral is tracked under both ETH (address(0)) and WETH addresses.
+    ///      Triggers a cooldown period for the user.
+    /// @param amountCollateral The amount of ETH to deposit (in wei).
     function depositCollateralETH(
         uint256 amountCollateral
     )
@@ -229,13 +275,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         });
     }
 
-    /**
-     * @dev HF should remain above 1 after redeeming collateral
-     * @notice Users can only redeem up to the max amount that keeps their HF above 1
-     * @param collateral: The ERC20 token address of the collateral being redeemed
-     * @param amountCollateral: The amount of collateral being redeemed
-     * @param isEth: Boolean to indicate if the collateral being redeemed is ETH
-     */
+    /// @notice Redeems (withdraws) collateral from the user's position.
+    /// @dev The health factor must remain >= 1.0 after redemption.
+    ///      If the requested amount exceeds the maximum withdrawable amount,
+    ///      the withdrawal will be limited to the maximum allowed.
+    ///      Triggers a cooldown period for the user.
+    /// @param collateral The ERC20 token address of the collateral to redeem.
+    /// @param amountCollateral The amount of collateral to attempt to redeem.
+    /// @param isEth If true, the collateral will be returned as ETH (via WETH unwrap).
     function redeemCollateral(
         address collateral,
         uint256 amountCollateral,
@@ -262,8 +309,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         if (amountCollateral > maxAmount) {
             amountCollateral = maxAmount;
         }
-        if (isEth) {
+        if (isEth && s_collateralDeposited[msg.sender][ETH] > 0) {
             s_collateralDeposited[msg.sender][ETH] -= amountCollateral;
+        } else {
+            isEth = false;
         }
         s_collateralDeposited[msg.sender][collateral] -= amountCollateral;
 
@@ -271,11 +320,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    /**
-     * @dev Borrowing USDC limited to amounts that wont break HF, calculated locally based on DebtManager's Aave position
-     * @notice Users can only borrow up to the max amount that keeps their HF above 1.0
-     * @param amountToBorrow: The amount of USDC to borrow
-     */
+    /// @notice Borrows USDC against supplied collateral.
+    /// @dev The borrow amount is limited to keep the health factor >= 1.0.
+    ///      Calculates maximum borrow locally based on DebtManager's Aave position.
+    ///      Triggers a cooldown period for the user.
+    /// @param amountToBorrow The amount of USDC to borrow (in USDC units).
     function borrowUsdc(
         uint256 amountToBorrow
     )
@@ -306,11 +355,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    /**
-     * @dev Repayment of USDC debt, partial or full. Protocol cut is taken here.
-     * @notice If user is repaying more than they owe, excess is ignored
-     * @param amountToRepay: The amount of USDC to repay
-     */
+    /// @notice Repays USDC debt on behalf of the caller.
+    /// @dev Partial or full repayment is allowed. If amount exceeds debt, excess is ignored.
+    ///      The protocol takes its cut (APR spread) from the repayment.
+    /// @param amountToRepay The amount of USDC to repay (in USDC units).
     function repayUsdc(
         uint256 amountToRepay
     ) external override nonReentrant moreThanZero(amountToRepay) whenNotPaused {
@@ -330,10 +378,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         _repayUsdc(amountToRepay);
     }
 
-    /**
-     * @notice APR cannot be set below base APR
-     * @param _newAPR: The new APR spread
-     */
+    /// @notice Sets the protocol APR markup (spread on top of Aave's rate).
+    /// @dev Only callable by the owner. Cannot be set below BASE_APR (0.5%).
+    /// @param _newAPR The new APR markup as wad (1e18 = 100%).
     function setProtocolAPRMarkup(
         uint256 _newAPR
     ) external override nonReentrant onlyOwner {
@@ -343,10 +390,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         protocolAPRMarkup = _newAPR;
     }
 
-    /**
-     * @notice Liquidation fee cannot be set below base APR
-     * @param _newFee: The new liquidation fee
-     */
+    /// @notice Sets the liquidation fee applied to seized collateral during liquidations.
+    /// @dev Only callable by the owner. Cannot be set below BASE_APR (0.5%).
+    /// @param _newFee The new liquidation fee as wad (1e18 = 100%).
     function setLiquidationFee(
         uint256 _newFee
     ) external override nonReentrant onlyOwner {
@@ -356,10 +402,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_liquidationFee = _newFee;
     }
 
-    /**
-     * @notice Cool down period cannot be set above max cool down
-     * @param _newCoolDown: The new cool down period
-     */
+    /// @notice Sets the cooldown period enforced between user actions.
+    /// @dev Only callable by the owner. Cannot exceed MAX_COOLDOWN (30 minutes).
+    /// @param _newCoolDown The new cooldown period in seconds.
     function setCoolDownPeriod(
         uint256 _newCoolDown
     ) external override nonReentrant onlyOwner {
@@ -369,10 +414,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_coolDownPeriod = _newCoolDown;
     }
 
-    /**
-     * @dev Add a new collateral asset to the system
-     * @param collateral: Address of the asset to add
-     */
+    /// @notice Adds a new collateral asset to the protocol.
+    /// @dev Only callable by the owner. Reverts if adding ETH sentinel address.
+    /// @param collateral The address of the collateral token to add.
     function addCollateralAsset(
         address collateral
     ) external override onlyOwner {
@@ -383,10 +427,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_supportedCollateral[collateral] = true;
     }
 
-    /**
-     * @dev Pauses collateral activity(deposits) for a specific asset
-     * @param collateral: Address of the asset to pause
-     */
+    /// @notice Pauses deposits (collateral activity) for a specific asset.
+    /// @dev Only callable by the owner. Prevents new deposits for the asset.
+    /// @param collateral The address of the collateral token to pause.
     function pauseCollateralActivity(
         address collateral
     ) external override onlyOwner {
@@ -399,10 +442,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         s_collateralPaused[collateral] = true;
     }
 
-    /**
-     * @dev Unpauses collateral activity(deposits) for a specific asset
-     * @param collateral: Address of the asset to unpause
-     */
+    /// @notice Unpauses deposits (collateral activity) for a specific asset.
+    /// @dev Only callable by the owner. Re-enables deposits for the asset.
+    /// @param collateral The address of the collateral token to unpause.
     function unPauseCollateralActivity(
         address collateral
     ) external override onlyOwner {
@@ -464,14 +506,15 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         return ltv >= s_platformLltv;
     }
 
-    /**
-     * @dev Liquidation only happens when user is liquidatable & if it improves their health factor
-     * @param user: The address of the user to liquidate
-     * @param debtAsset: The asset that was borrowed
-     * @param collateralAsset: The asset to recieve
-     * @param repayAmount: The amount to pay onbehalf of user, in USDC
-     * @param isEth: Boolean to indicate if the collateral being redeemed is ETH
-     */
+    /// @notice Liquidates an undercollateralized user's position.
+    /// @dev The user must be liquidatable (HF < 1.0). The liquidator repays debt
+    ///      and receives collateral at a bonus. Only up to 50% of debt can be repaid.
+    ///      The liquidation fee is applied to the seized collateral.
+    /// @param user The address of the user to liquidate.
+    /// @param debtAsset The address of the borrowed asset (USDC).
+    /// @param collateralAsset The address of the collateral to seize.
+    /// @param repayAmount The amount of debt asset to repay on behalf of the user.
+    /// @param isEth If true, the seized collateral is returned as ETH.
     function liquidate(
         address user,
         address debtAsset,
@@ -549,13 +592,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
     /* WITHDRAW FROM CONTRACT */
 
-    /**
-     * @dev Withdraw accrued revenue from protocol operations
-     * @notice Only callable by the contract owner
-     * @param to: The address to send the revenue to, a treasury
-     * @param asset: The asset to withdraw
-     * @param amount: The amount to withdraw
-     */
+    /// @notice Withdraws accrued protocol revenue to a specified treasury address.
+    /// @dev Only callable by the owner. Revenue comes from interest spreads and liquidation fees.
+    /// @param to The recipient address for the withdrawn revenue.
+    /// @param asset The asset address to withdraw.
+    /// @param amount The amount to withdraw.
     function withdrawRevenue(
         address to,
         address asset,
