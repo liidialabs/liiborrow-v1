@@ -31,7 +31,7 @@ contract DeployDebtManager is Script {
             uint256 deployerKey
         ) = helperConfig.activeNetworkConfig();
         // Prepare token addresses array
-        recievedTokenAddresses = [cbeth, cbbtc, weth, wbtc, usdc];
+        recievedTokenAddresses = [cbeth, cbbtc, weth, wbtc];
         for (uint256 i = 0; i < recievedTokenAddresses.length; i++) {
             if (recievedTokenAddresses[i] != address(0)) {
                 tokenAddresses.push(recievedTokenAddresses[i]);
@@ -44,6 +44,9 @@ contract DeployDebtManager is Script {
         aave = new Aave(pool, oracle, dataProvider, usdc);
         // deploy debt manager
         debtManager = new DebtManager(tokenAddresses, address(aave), usdc, weth);
+        // Lowere cooldown period
+        uint256 _newCoolDown = 30 seconds;
+        debtManager.setCoolDownPeriod(_newCoolDown);
         
         vm.stopBroadcast();
 
