@@ -661,7 +661,7 @@ contract DebtManagerTest is Test {
 
         vm.warp(block.timestamp + COOLDOWN + 1);
         vm.prank(user1);
-        debtManager.redeemCollateral(address(weth), redeemAmount, false);
+        debtManager.redeemCollateral(address(weth), redeemAmount, true);
 
         assertEq(
             debtManager.getCollateralBalanceOfUser(user1, address(weth)),
