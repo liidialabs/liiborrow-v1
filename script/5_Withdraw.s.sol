@@ -15,7 +15,7 @@ contract Withdraw is Script {
     Aave private aave;
     HelperConfig private helperConfig;
     
-    uint256 private withdrawAmount = 0.05 ether;
+    uint256 private withdrawAmount = 0.057 ether;
     uint256 private userKey = vm.envUint("PRIVATE_KEY_USER");
 
     function run() external {

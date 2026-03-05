@@ -36,12 +36,13 @@ coverage-report :; forge coverage --report lcov && genhtml lcov.info -o coverage
 # RPC_URL := --rpc-url http://localhost:8545 
 
 # Sepolia
-# NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) --broadcast -vvvv
+# NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) --slow --broadcast -vvvv
 # RPC_URL := --rpc-url $(SEPOLIA_RPC_URL)
 
 # Tenderly
 NETWORK_ARGS := --rpc-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)	\
 				--private-key $(PRIVATE_KEY_USER)	\
+				--slow	\
 				--broadcast -vvvv
 RPC_URL := --rpc-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)
 
@@ -117,3 +118,7 @@ sim-repay:
 
 sim-withdraw:
 	@forge script script/5_Withdraw.s.sol:Withdraw $(RPC_URL)
+
+# Tenderly - to deal with cooldown periods
+forward-time:
+	@cast rpc evm_increaseTime 3600 --rpc-url $(TENDERLY_VIRTUAL_TESTNET_ADMIN)

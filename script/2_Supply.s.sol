@@ -15,19 +15,19 @@ contract Supply is Script {
     DebtManager private debtManager;
     Aave private aave;
     HelperConfig private helperConfig;
-    MockERC20 private weth;
+    MockERC20 private WETH;
     MockAaveV3Pool private mockPool;
 
     address private user; 
     
-    uint256 private supplyAmount = 0.1 ether;
+    uint256 private supplyAmount = 1 ether;
     uint256 private userKey = vm.envUint("PRIVATE_KEY_USER");
 
     function run() external {
         // Deploy HelperConfig to get active network config
         helperConfig = new HelperConfig();
         (
-            ,, address _weth,,, address _pool,,,
+            ,, address weth,,, address _pool,,,
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -40,17 +40,17 @@ contract Supply is Script {
         // create contract instances
         debtManager = DebtManager(payable(debtManagerAddress));
         aave = Aave(aaveAddress);
-        weth = MockERC20(_weth);
+        WETH = MockERC20(weth);
         mockPool = MockAaveV3Pool(_pool);
 
         vm.startBroadcast(userKey);
 
         // mint WETH
-        weth.mint(user, supplyAmount);
+        WETH.mint(user, supplyAmount);
         // approve WETH to be spent by debt manager
-        weth.approve(address(debtManager), supplyAmount);
+        WETH.approve(address(debtManager), supplyAmount);
         // supply WETH to the protocol
-        debtManager.depositCollateralERC20(_weth, supplyAmount);
+        debtManager.depositCollateralERC20(weth, supplyAmount);
 
         vm.stopBroadcast();
 
@@ -64,35 +64,8 @@ contract Supply is Script {
         for (uint256 i = 0; i < userCollateral.length; i++) {
             console2.log("Symbol:", userCollateral[i].symbol);
             console2.log("Collateral:", userCollateral[i].collateral);
-            console2.log("Amount:", userCollateral[i].amount);
-            console2.log("Value:", userCollateral[i].value);
+            console2.log("Amount:", userCollateral[i].amount / 1e18);
+            console2.log("Value:", userCollateral[i].value / 1e18);
         }
-
-        // Log protocol's Aave position
-        (
-            uint256 collateralUSD,
-            uint256 debtUSD,
-            uint256 canBorrowUSD,
-            uint256 canBorrowUSDC,
-            uint256 _currentLiquidationThreshold,
-            uint256 _ltv
-        ) = aave.getUserAccountData(address(debtManager));
-
-        console2.log("Protocol's Aave position after supplying:");
-        console2.log("Collateral in USD:", collateralUSD);
-        console2.log("Debt in USD:", debtUSD);
-        console2.log("Available to borrow in USD:", canBorrowUSD);
-        console2.log("Available to borrow in USDC:", canBorrowUSDC);
-        console2.log("Current Liquidation Threshold:", _currentLiquidationThreshold);
-        console2.log("Loan to Value ratio:", _ltv);
-
-        // Log protocol's health factor after supplying
-        (uint256 hf, HealthStatus status) = aave.getHealthFactor(address(debtManager));
-        console2.log("Protocol's health factor after supplying:", hf);
-        console2.log("Protocol's health status after supplying:", uint256(status));
-
-        // Log protocol's supply balance in WETH after supplying
-        uint256 supplyBalance = aave.getSupplyBalance(address(debtManager), address(weth));
-        console2.log("Protocol's supply balance in WETH:", supplyBalance);
     }
 }

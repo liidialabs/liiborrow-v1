@@ -55,19 +55,19 @@ contract HelperConfig is Script {
         )
     {
         mainnetNetworkConfig = NetworkConfig({
-            cbeth: 0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22,
-            cbbtc: 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf,
-            weth: 0x4200000000000000000000000000000000000006,
+            cbeth: address(0),
+            cbbtc: address(0),
+            weth: 0x49C954F846e870FE5402C7F65cD035592c81aadB,
             wbtc: address(0),
-            usdc: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
-            pool: 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5,
-            oracle: 0x2Cc0Fc26eD4563A5ce5e8bdcfe1A2878676Ae156,
-            dataProvider: address(123456789), // TODO: replace with actual data provider address
+            usdc: 0x8ca959E4c4745df0E2fE5CE5fAcFD3F35ae509e9,
+            pool: 0xd64033432e085905487A490441C0cF8D47E1c40f,
+            oracle: 0xDFe8c6121b43e3B5bd0731F724007D0119B838bc,
+            dataProvider: 0x7F3e4036e201a35b147574554DBE698940E2758D,
             deployerKey: deployerKey
         });
         mainnetCoreConfig = CoreConfig({
-            debtManagerAddress: address(0),
-            aaveAddress: address(0)
+            debtManagerAddress: 0x4E0Af3287669D331BB5B858B738B0be069b7C750,
+            aaveAddress: 0x4fc08467e75db0123480d869239Afd9CCBeE0951
         });
     }
 

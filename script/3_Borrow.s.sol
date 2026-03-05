@@ -7,12 +7,14 @@ import { Aave } from  "../src/Aave.sol";
 import { DebtManager } from "../src/DebtManager.sol";
 import { HealthStatus } from "../src/Types.sol";
 import { HelperConfig } from "./HelperConfig.s.sol";
+import { MockAaveV3Pool } from "../test/mocks/MockAaveV3Pool.sol";
 
 /// @notice This script supplies ETH to the protocol
 contract Borrow is Script {
     DebtManager private debtManager;
     Aave private aave;
     HelperConfig private helperConfig;
+    MockAaveV3Pool private aaveV3Pool;
     
     uint256 private borrowAmount = 1200e6;
     uint256 private USER = vm.envUint("PRIVATE_KEY_USER");
@@ -21,7 +23,7 @@ contract Borrow is Script {
         // Deploy HelperConfig to get active network config
         helperConfig = new HelperConfig();
         (
-            ,, address weth,,,,,,
+            ,, address weth,,,address pool,,,
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -29,15 +31,27 @@ contract Borrow is Script {
 
         // Initialize the DebtManager contract
         debtManager = DebtManager(payable(debtManagerAddress));
+        aaveV3Pool = MockAaveV3Pool(pool);
 
         vm.startBroadcast(USER);
+
+        // Set 
+        aaveV3Pool.setUserAccountData(
+            address(debtManager),
+            200000e8,
+            0,
+            160000e8,
+            8250,
+            8000,
+            type(uint256).max
+        ); 
 
         uint256 hfBefore = debtManager.getHealthFactor(vm.addr(USER));
         (uint256 aaveDebtBefore, ) = debtManager.getUserDebt(vm.addr(USER));
         uint256 balance = debtManager.getCollateralBalanceOfUser(vm.addr(USER), weth);
-        console2.log("User collateral balance from DebtManager: %s WETH", balance / 1e18);
+        console2.log("User collateral balance from DebtManager: %s WETH", balance);
         console2.log("User Health Factor before borrow: %s", hfBefore);
-        console2.log("User Debt before borrow: %s USDC", aaveDebtBefore / 1e6);
+        console2.log("User Debt before borrow: %s USDC", aaveDebtBefore);
         console2.log("------------------------------------------------------------");
 
         // Borrow USDC
