@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { Script } from "forge-std/Script.sol";
+import {Script} from "forge-std/Script.sol";
 
+/// @title HelperConfig
+/// @author Liidia Team
+/// @notice This contract manages network configurations for different blockchain networks
+/// @dev Automatically selects the appropriate network config based on the current chain ID
 contract HelperConfig is Script {
     NetworkConfig public activeNetworkConfig;
+    CoreConfig public activeCoreConfig;
 
+    /// @notice Configuration for network-specific addresses and parameters
+    /// @dev Contains all the protocol and token addresses for a given network
     struct NetworkConfig {
         address cbeth;
         address cbbtc;
@@ -18,20 +25,35 @@ contract HelperConfig is Script {
         uint256 deployerKey;
     }
 
-    address public constant debtManagerAddress = 0xFB56BcBB16eF411Ad25EE507d7c2430e561ae3E0;
-    address public constant aaveAddress = 0x4051A4D767C41074bA8d714083DB2308EA55B7c4;
-    uint256 deployerKey = vm.envUint("PRIVATE_KEY_DEPLOYER");
-
-    constructor() {        
-        if (block.chainid == 111_55_111) {
-            // activeNetworkConfig = getSepoliaEthConfig();
-            activeNetworkConfig = getMockConfigs();
-        } else if (block.chainid == 84532) {
-            activeNetworkConfig = getBaseMainConfig();
-        } 
+    /// @notice Configuration for core protocol addresses
+    /// @dev Contains addresses for debt manager and aave protocol
+    struct CoreConfig {
+        address debtManagerAddress;
+        address aaveAddress;
     }
 
-    function getBaseMainConfig() public view returns (NetworkConfig memory mainnetNetworkConfig) {
+    /// @notice The deployer private key from environment variables
+    uint256 deployerKey = vm.envUint("PRIVATE_KEY_DEPLOYER");
+
+    /// @notice Constructor that sets up the active network configuration
+    /// @dev Automatically detects chain ID and loads appropriate config
+    constructor() {
+        if (block.chainid == 111_55_111) {
+            (activeNetworkConfig, activeCoreConfig) = getSepoliaConfig();
+        }
+        if (block.chainid == 1) {
+            (activeNetworkConfig, activeCoreConfig) = getMainnetConfig();
+        }
+    }
+
+    function getMainnetConfig()
+        public
+        view
+        returns (
+            NetworkConfig memory mainnetNetworkConfig,
+            CoreConfig memory mainnetCoreConfig
+        )
+    {
         mainnetNetworkConfig = NetworkConfig({
             cbeth: 0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22,
             cbbtc: 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf,
@@ -43,33 +65,34 @@ contract HelperConfig is Script {
             dataProvider: address(123456789), // TODO: replace with actual data provider address
             deployerKey: deployerKey
         });
-    }
-
-    function getSepoliaEthConfig() public view returns (NetworkConfig memory sepoliaNetworkConfig) {
-        sepoliaNetworkConfig = NetworkConfig({
-            cbeth: address(0),
-            cbbtc: address(0),
-            weth: 0xC558DBdd856501FCd9aaF1E62eae57A9F0629a3c,
-            wbtc: 0x29f2D40B0605204364af54EC677bD022dA425d03,
-            usdc: 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8,
-            pool: 0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951,
-            oracle: 0x2da88497588bf89281816106C7259e31AF45a663,
-            dataProvider: 0x3e9708d80f7B3e43118013075F7e95CE3AB31F31,
-            deployerKey: deployerKey
+        mainnetCoreConfig = CoreConfig({
+            debtManagerAddress: address(0),
+            aaveAddress: address(0)
         });
     }
 
-    function getMockConfigs() public view returns (NetworkConfig memory createdNetworkConfig) { 
-        createdNetworkConfig = NetworkConfig({
+    function getSepoliaConfig()
+        public
+        view
+        returns (
+            NetworkConfig memory sepoliaNetworkConfig,
+            CoreConfig memory sepoliaCoreConfig
+        )
+    {
+        sepoliaNetworkConfig = NetworkConfig({
             cbeth: address(0),
             cbbtc: address(0),
-            weth: 0x6de4964bfEbCa1848c74FeaA6736b14898DfDB0c,
+            weth: address(0),
             wbtc: address(0),
-            usdc: 0x23256311E41354c00E880D5b923A64552f077FD3,
-            pool: 0xe1B210f9064001a2db724e8DA6166CD76737DD40,
-            oracle: 0xe6dC6561a06cFD9969761913D38EcC58cE7227B9,
-            dataProvider: 0x257b85Bf832B8C87Db948e37A00C1f61d2F15743,
+            usdc: address(0),
+            pool: address(0),
+            oracle: address(0),
+            dataProvider: address(0),
             deployerKey: deployerKey
+        });
+        sepoliaCoreConfig = CoreConfig({
+            debtManagerAddress: address(0),
+            aaveAddress: address(0)
         });
     }
 }
