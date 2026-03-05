@@ -18,8 +18,9 @@ contract HelperConfig is Script {
         uint256 deployerKey;
     }
 
-    address public constant debtManagerAddress = 0x3f26685991D09eCd40227Efb7649Ca2A371708CC;
-    address public constant aaveAddress = 0x2853eA59358977011a8Bf653ab00d975871e3D6e;
+    address public constant debtManagerAddress = 0xFB56BcBB16eF411Ad25EE507d7c2430e561ae3E0;
+    address public constant aaveAddress = 0x4051A4D767C41074bA8d714083DB2308EA55B7c4;
+    uint256 deployerKey = vm.envUint("PRIVATE_KEY_DEPLOYER");
 
     constructor() {        
         if (block.chainid == 111_55_111) {
@@ -40,7 +41,7 @@ contract HelperConfig is Script {
             pool: 0xA238Dd80C259a72e81d7e4664a9801593F98d1c5,
             oracle: 0x2Cc0Fc26eD4563A5ce5e8bdcfe1A2878676Ae156,
             dataProvider: address(123456789), // TODO: replace with actual data provider address
-            deployerKey: vm.envUint("PRIVATE_KEY")
+            deployerKey: deployerKey
         });
     }
 
@@ -54,7 +55,7 @@ contract HelperConfig is Script {
             pool: 0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951,
             oracle: 0x2da88497588bf89281816106C7259e31AF45a663,
             dataProvider: 0x3e9708d80f7B3e43118013075F7e95CE3AB31F31,
-            deployerKey: vm.envUint("PRIVATE_KEY_DEPLOYER")
+            deployerKey: deployerKey
         });
     }
 
@@ -62,13 +63,13 @@ contract HelperConfig is Script {
         createdNetworkConfig = NetworkConfig({
             cbeth: address(0),
             cbbtc: address(0),
-            weth: 0x394A1145Cc4480cD047ad065a5Ece23D4fcC2E1d,
+            weth: 0x6de4964bfEbCa1848c74FeaA6736b14898DfDB0c,
             wbtc: address(0),
-            usdc: 0xf8340a3BB21282Af32B567e0ACE1Cc5c4eF63a73,
-            pool: 0xDB79AF69617bFcB71D55E7575bFbb1De86151eF9,
-            oracle: 0x10C979d0f556799262CF3934e211BDA4e4E9074A,
-            dataProvider: 0x939d6989D15CF96F6E1cE8b6067d016fbf0D7C67,
-            deployerKey: vm.envUint("PRIVATE_KEY_DEPLOYER")
+            usdc: 0x23256311E41354c00E880D5b923A64552f077FD3,
+            pool: 0xe1B210f9064001a2db724e8DA6166CD76737DD40,
+            oracle: 0xe6dC6561a06cFD9969761913D38EcC58cE7227B9,
+            dataProvider: 0x257b85Bf832B8C87Db948e37A00C1f61d2F15743,
+            deployerKey: deployerKey
         });
     }
 }
