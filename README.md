@@ -6,7 +6,7 @@ A pooled crypto-backed lending smart contract built on top of Aave V3. LiiBorrow
 
 LiiBorrow is a Collateralized Debt Position (CDP) protocol that provides decentralized lending services with the following features:
 
-- **Pooled Deposits**: Aggregates users WETH and WBTC deposits into a single Aave position
+- **Pooled Deposits**: Aggregates users deposits into a single Aave position
 - **Fiat Borrowing**: Users borrow USDC, which is off-ramped to local fiat currency
 - **Safety Buffer**: Borrowing limits are set 10% below the pool-level Aave's LTV to maintain protocol solvency
 - **Automated Liquidation**: Pool-level health factor enforcement with proportional liquidation
@@ -27,7 +27,7 @@ LiiBorrow is a Collateralized Debt Position (CDP) protocol that provides decentr
 ### Supported Assets
 
 - **Collateral**: Starting with WETH (Wrapped Ether), WBTC (Wrapped Bitcoin)
-- **Debt**: USDC (USD Coin), expamd to USDT (Tether USD) later
+- **Debt**: USDC (USD Coin), expand to USDT (Tether USD) later
 
 ## Protocol Mechanics
 
@@ -185,59 +185,22 @@ The protocol maintains a 10% buffer below Aave's LTV (PLATFORM_AAVE_LTV_DIFF), p
 ### Install Dependencies
 
 ```bash
-make install
+forge install
 ```
 
 ### Build
 
 ```bash
-make build
+forge build
 ```
 
 ### Run Tests
 
 ```bash
-make test
-```
-
-### Coverage Report
-
-```bash
-make coverage
-```
-
-### Format Code
-
-```bash
-make format
-```
-
-### Contract Size
-
-```bash
-make size
+forge test
 ```
 
 ## Deployment
-
-### Local Development
-
-```bash
-# Start local anvil node (optional)
-anvil
-
-# Deploy mocks and configure
-make sim-deployConfig
-
-# Deploy DebtManager
-make sim-deploy
-
-# Interact with protocol
-make sim-supply
-make sim-borrow
-make sim-repay
-make sim-withdraw
-```
 
 ### Testnet (Sepolia)
 
@@ -248,6 +211,7 @@ PRIVATE_KEY_DEPLOYER=<your_private_key>
 ETHERSCAN_API_KEY=<your_etherscan_key>
 
 # Deploy to Sepolia
+make deploy-config ARGS="--network sepolia"
 make deploy ARGS="--network sepolia"
 ```
 
@@ -260,6 +224,7 @@ PRIVATE_KEY_DEPLOYER=<your_private_key>
 ETHERSCAN_API_KEY=<your_etherscan_key>
 
 # Deploy to Mainnet
+make deploy-config ARGS="--network mainnet"
 make deploy ARGS="--network mainnet"
 ```
 
@@ -275,9 +240,36 @@ TENDERLY_VERIFIER_URL=<your_tenderly_verifier_url>
 TENDERLY_ACCESS_KEY=<your_access_key>
 
 # Deploy to Tenderly Virtual Testnet
+make deploy-config ARGS="--network tenderly"
 make deploy ARGS="--network tenderly"
 ```
-> **Note**: Comment and uncomment the NETWORK_ARGS and RPC_URL depending on where you are deploying.
+> **Note**: - Comment and uncomment the NETWORK_ARGS and RPC_URL depending on where you are deploying.
+
+> **Note**: - After deployment record the contract addresse in HelperConfig file.
+
+### Interact with protocol
+
+```bash
+## SIMULATE CONTRACTS TO ESTIMATE GAS AND FIX BUGS
+
+# Deploy mocks and configure
+make sim-deployConfig
+
+# Deploy DebtManager
+make sim-deploy
+
+# Interact with protocol
+make sim-supply
+make sim-borrow
+make sim-repay
+make sim-withdraw
+
+## SEND REAL TX
+make supply
+make borrow
+make repay
+make withdraw
+```
 
 ## Integrations
 
