@@ -31,19 +31,51 @@ coverage :; forge coverage
 
 coverage-report :; forge coverage --report lcov && genhtml lcov.info -o coverage && cd coverage && python3 -m http.server 8000
 
-anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 1
-
+# Anvil
 # NETWORK_ARGS := --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) --broadcast -vvvv
-NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) --broadcast -vvvv
+# RPC_URL := --rpc-url http://localhost:8545 
+
+# Sepolia
+# NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_USER) --broadcast -vvvv
+# RPC_URL := --rpc-url $(SEPOLIA_RPC_URL)
+
+# Tenderly
+NETWORK_ARGS := --rpc-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)	\
+				--private-key $(PRIVATE_KEY_USER)	\
+				--broadcast -vvvv
+RPC_URL := --rpc-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL)
 
 # Set NETWORK_ARGS based on the network specified in ARGS for deployment
 # make deploy ARGS="--network sepolia"
 ifeq ($(findstring --network sepolia,$(ARGS)),--network sepolia)
-	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --gas-price 50000000000 --slow --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+	NETWORK_ARGS := --rpc-url $(SEPOLIA_RPC_URL)	\ 
+					--private-key $(PRIVATE_KEY_DEPLOYER)	\
+					--broadcast	\ 
+					--gas-price 50000000000	\ 
+					--slow	\ 
+					--verify	\ 
+					--etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+endif
+
+ifeq ($(findstring --network tenderly,$(ARGS)),--network tenderly)
+	NETWORK_ARGS := --slow \
+					--broadcast \
+					--verify \
+					--verifier custom \
+					--verifier-url $(TENDERLY_VERIFIER_URL) \
+					--rpc-url $(TENDERLY_VIRTUAL_TESTNET_RPC_URL) \
+					--private-key $(PRIVATE_KEY_DEPLOYER) \
+					--chain-id 11155111
 endif
 
 ifeq ($(findstring --network mainnet,$(ARGS)),--network mainnet)
-	NETWORK_ARGS := --rpc-url $(MAINNET_RPC_URL) --private-key $(PRIVATE_KEY_DEPLOYER) --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
+	NETWORK_ARGS := --rpc-url $(MAINNET_RPC_URL)	\
+	 				--private-key $(PRIVATE_KEY_DEPLOYER)	\ 
+					--broadcast	\ 
+					--gas-price 50000000000	\ 
+					--slow	\ 
+					--verify	\ 
+					--etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 endif
 
 # quick deploy and interaction scripts for testnet testing
@@ -66,22 +98,22 @@ repay:
 withdraw: 
 	@forge script script/5_Withdraw.s.sol:Withdraw $(NETWORK_ARGS)
 
-# quick deploy and interaction scripts for gas estimation on Sepolia
+# Simulate deployments and contract interactions to estimate gas and fix bugs
 
 sim-deployConfig:
-	@forge script script/1a_DeployAndConfigureMocks.s.sol:DeployAndConfigureMocks --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/1a_DeployAndConfigureMocks.s.sol:DeployAndConfigureMocks $(RPC_URL)
 
 sim-deploy:
-	@forge script script/1b_DeployDebtManager.s.sol:DeployDebtManager --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/1b_DeployDebtManager.s.sol:DeployDebtManager $(RPC_URL)
 
 sim-supply:
-	@forge script script/2_Supply.s.sol:Supply --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/2_Supply.s.sol:Supply $(RPC_URL)
 
 sim-borrow:
-	@forge script script/3_Borrow.s.sol:Borrow --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/3_Borrow.s.sol:Borrow $(RPC_URL)
 
 sim-repay:
-	@forge script script/4_Repay.s.sol:Repay --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/4_Repay.s.sol:Repay $(RPC_URL)
 
 sim-withdraw:
-	@forge script script/5_Withdraw.s.sol:Withdraw --rpc-url $(SEPOLIA_RPC_URL)
+	@forge script script/5_Withdraw.s.sol:Withdraw $(RPC_URL)
