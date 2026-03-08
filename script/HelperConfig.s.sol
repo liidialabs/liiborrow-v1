@@ -41,7 +41,7 @@ contract HelperConfig is Script {
         if (block.chainid == 111_55_111) {
             (activeNetworkConfig, activeCoreConfig) = getSepoliaConfig();
         }
-        if (block.chainid == 1) {
+        if (block.chainid == 1) { // Can simulate mainnet with Tenderly Virtual TestNet
             (activeNetworkConfig, activeCoreConfig) = getMainnetConfig();
         }
     }
