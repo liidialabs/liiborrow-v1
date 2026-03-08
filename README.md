@@ -245,7 +245,7 @@ make deploy ARGS="--network tenderly"
 ```
 > **Note**: - Comment and uncomment the NETWORK_ARGS and RPC_URL depending on where you are deploying.
 
-> **Note**: - After deployment record the contract addresse in HelperConfig file.
+> **Note**: - After deployment record the contract addresses in HelperConfig file before proceeding with the other operations
 
 ### Interact with protocol
 
@@ -296,7 +296,7 @@ Asset prices are fetched from Aave's oracle system, which aggregates data from m
 
 ## License
 
-MIT License - see [LICENSE](./LICENSE) for details
+MIT
 
 ## Acknowledgments
 
