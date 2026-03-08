@@ -6,6 +6,7 @@ import "forge-std/console2.sol";
 import { HelperConfig } from "./HelperConfig.s.sol";
 import { Aave } from  "../src/Aave.sol";
 import { DebtManager } from "../src/DebtManager.sol";
+import { MockAaveV3Pool } from "../test/mocks/MockAaveV3Pool.sol";
 
 contract DeployDebtManager is Script {
     address[] public recievedTokenAddresses;
@@ -14,6 +15,7 @@ contract DeployDebtManager is Script {
     Aave public aave;
     DebtManager public debtManager;
     HelperConfig public helperConfig;
+    MockAaveV3Pool private aaveV3Pool;
 
     function run() external {
         // Deploy HelperConfig to get active network config
@@ -38,6 +40,9 @@ contract DeployDebtManager is Script {
             }
         }
 
+        // create contract instances
+        aaveV3Pool = MockAaveV3Pool(pool);
+
         vm.startBroadcast(deployerKey);
 
         // deploy aave
@@ -47,6 +52,16 @@ contract DeployDebtManager is Script {
         // Lowere cooldown period
         uint256 _newCoolDown = 30 seconds;
         debtManager.setCoolDownPeriod(_newCoolDown);
+        // set for pool account data for simulation
+        aaveV3Pool.setUserAccountData(
+            address(debtManager),
+            200000e8,
+            0,
+            160000e8,
+            8250,
+            8000,
+            type(uint256).max
+        ); 
         
         vm.stopBroadcast();
 
