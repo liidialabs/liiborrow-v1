@@ -32,6 +32,9 @@ contract Aave {
     /// @notice The USDC token address used as the debt asset.
     address public immutable USDC;
 
+    /// @notice The USDT token address used as an alternative debt asset.
+    address public immutable USDT;
+
     /// @notice The health status of the protocol's position (derived from Aave data).
     HealthStatus public healthStatus;
 
@@ -47,7 +50,8 @@ contract Aave {
     /// @notice Precision for USD prices (1e8 = 1 USD).
     uint256 private constant PRICE_PRECISION = 1e8;
 
-    /// @notice The decimal precision of the vToken (aToken/vToken) for the debt asset.
+    /// @notice The decimal precision of the vToken (aToken/variableDebtToken) for USDC.
+    /// @dev vTokens inherit from ERC20 and have the same decimals as the underlying asset (6 for USDC).
     uint8 public vTokenDecimals;
 
     /// @notice Initializes the Aave contract with required protocol addresses.
@@ -55,16 +59,19 @@ contract Aave {
     /// @param _oracle The Aave Oracle address.
     /// @param _dataProvider The Aave PoolDataProvider address.
     /// @param _usdc The USDC token address.
+    /// @param _usdt The USDT token address.
     constructor(
         address _pool,
         address _oracle,
         address _dataProvider,
-        address _usdc
+        address _usdc,
+        address _usdt
     ) {
         pool = IPool(_pool);
         oracle = IPriceOracle(_oracle);
         poolDataProvider = IPoolDataProvider(_dataProvider);
         USDC = _usdc;
+        USDT = _usdt;
         IPool.ReserveData memory reserve = pool.getReserveData(_usdc);
         vTokenDecimals = IERC20Metadata(reserve.variableDebtTokenAddress)
             .decimals();
@@ -90,6 +97,8 @@ contract Aave {
     /// @return canBorrowUSDC Available borrow power in USDC (in USDC units).
     /// @return _currentLiquidationThreshold The liquidation threshold (unit: 10000, e.g., 8000 = 80%).
     /// @return _ltv The loan-to-value ratio (unit: 10000, e.g., 7500 = 75%).
+    /// @return _healthFactor The health factor of the position (1e18 = 1.0).
+    /// @return status The HealthStatus enum (Healthy/Danger/Liquidatable).
     function getUserAccountData(
         address custodian
     )
@@ -101,7 +110,9 @@ contract Aave {
             uint256 canBorrowUSD,
             uint256 canBorrowUSDC,
             uint256 _currentLiquidationThreshold,
-            uint256 _ltv
+            uint256 _ltv,
+            uint256 _healthFactor,
+            HealthStatus status
         )
     {
         uint256 price = oracle.getAssetPrice(USDC);
@@ -113,7 +124,7 @@ contract Aave {
             uint256 availableBorrowsBase,
             uint256 currentLiquidationThreshold,
             uint256 ltv,
-
+            uint256 healthFactor
         ) = pool.getUserAccountData(custodian);
 
         collateralUSD = totalCollateralBase / PRICE_PRECISION;
@@ -123,6 +134,15 @@ contract Aave {
 
         _currentLiquidationThreshold = currentLiquidationThreshold;
         _ltv = ltv;
+        _healthFactor = healthFactor;
+
+        if (healthFactor < 1e18) {
+            status = HealthStatus.Liquidatable;
+        } else if (healthFactor <= 1.1e18) {
+            status = HealthStatus.Danger;
+        } else {
+            status = HealthStatus.Healthy;
+        }
     }
 
     /// @notice Calculates the health factor and status for a custodian position.
@@ -147,11 +167,13 @@ contract Aave {
 
     /// @notice Validates that a borrow would not break the health factor requirement.
     /// @dev Reverts if the new health factor would be below 1.1 or if borrow exceeds available liquidity.
-    /// @param amountToBorrow The amount of USDC to borrow.
+    /// @param amountToBorrow The amount of asset to borrow.
     /// @param custodian The DebtManager address.
+    /// @param asset The asset address being borrowed (USDC or USDT).
     function revertIfHFBreaks(
         uint256 amountToBorrow,
-        address custodian
+        address custodian,
+        address asset
     ) external view {
         (
             uint256 totalCollateralBase,
@@ -162,8 +184,8 @@ contract Aave {
 
         ) = pool.getUserAccountData(custodian);
 
-        uint256 price = oracle.getAssetPrice(USDC);
-        uint256 decimals = IERC20Metadata(USDC).decimals();
+        uint256 price = oracle.getAssetPrice(asset);
+        uint256 decimals = IERC20Metadata(asset).decimals();
 
         uint256 amountInUsd = (amountToBorrow * price) / (10 ** decimals);
         if (amountInUsd > availableBorrowsBase) {
@@ -198,6 +220,16 @@ contract Aave {
     ) public view returns (uint256) {
         IPool.ReserveData memory reserve = pool.getReserveData(asset);
         return IERC20(reserve.variableDebtTokenAddress).balanceOf(custodian);
+    }
+
+    /// @notice Gets the variable debt balance for USDC and USDT for the platform.
+    /// @return usdcDebt The USDC variable debt amount.
+    /// @return usdtDebt The USDT variable debt amount.
+    function getVariableDebt(
+        address custodian
+    ) public view returns (uint256 usdcDebt, uint256 usdtDebt) {
+        usdcDebt = getVariableDebt(custodian, USDC);
+        usdtDebt = getVariableDebt(custodian, USDT);
     }
 
     /// @notice Gets the supply (aToken) balance for an account in a specific asset.
