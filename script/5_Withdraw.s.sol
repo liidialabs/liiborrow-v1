@@ -25,7 +25,7 @@ contract Withdraw is Script {
         (
             ,,
             address weth,
-            ,,,,,
+            ,,,,,,
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -60,7 +60,7 @@ contract Withdraw is Script {
         vm.startBroadcast(userKey);
 
         // withdraw Weth from debt
-        debtManager.redeemCollateral(weth, withdrawAmount, false);
+        debtManager.redeemCollateral(weth, withdrawAmount, USER, false);
 
         vm.stopBroadcast();
 

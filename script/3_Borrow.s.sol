@@ -21,7 +21,7 @@ contract Borrow is Script {
         // Deploy HelperConfig to get active network config
         helperConfig = new HelperConfig();
         (
-            ,, address weth,,,,,,
+            ,, address weth,, address usdc, address usdt, address pool, address oracle, address dataProvider, uint256 deployerKey
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -41,7 +41,7 @@ contract Borrow is Script {
         console2.log("------------------------------------------------------------");
 
         // Borrow USDC
-        debtManager.borrowUsdc(borrowAmount);
+        debtManager.borrow(usdc, borrowAmount, vm.addr(USER));
 
         vm.stopBroadcast();
 

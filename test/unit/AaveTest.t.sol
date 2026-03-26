@@ -38,11 +38,14 @@ contract AaveTest is Test {
         mockPoolDataProvider = new MockPoolDataProvider();
         weth = new MockERC20("WETH", "WETH", 18);
         usdc = new MockERC20("USDC", "USDC", 6);
+        MockERC20 usdt = new MockERC20("USDT", "USDT", 6);
         aUsdc = new MockERC20("Aave USDC", "aUSDC", 6);
         vUsdc = new MockERC20("Variable Debt USDC", "vUSDC", 6);
+        MockERC20 vUsdt = new MockERC20("Variable Debt USDT", "vUSDT", 6);
 
         // Setup oracle price
         mockOracle.setAssetPrice(address(usdc), USDC_PRICE);
+        mockOracle.setAssetPrice(address(usdt), USDC_PRICE);
 
         // Setup reserve data in pool
         IPool.ReserveData memory reserveData = IPool.ReserveData({
@@ -64,6 +67,26 @@ contract AaveTest is Test {
         });
         mockPool.setReserveData(address(usdc), reserveData);
 
+        // Setup USDT reserve data
+        IPool.ReserveData memory reserveData_usdt = IPool.ReserveData({
+            configuration: IPool.ReserveConfigurationMap(0),
+            liquidityIndex: 1e27,
+            currentLiquidityRate: 3e25,
+            variableBorrowIndex: 1e27,
+            currentVariableBorrowRate: 5e25,
+            currentStableBorrowRate: 6e25,
+            lastUpdateTimestamp: uint40(block.timestamp),
+            id: 2,
+            aTokenAddress: address(usdt),
+            stableDebtTokenAddress: address(0),
+            variableDebtTokenAddress: address(vUsdt),
+            interestRateStrategyAddress: address(0),
+            accruedToTreasury: 0,
+            unbacked: 0,
+            isolationModeTotalDebt: 0
+        });
+        mockPool.setReserveData(address(usdt), reserveData_usdt);
+
         // Setup reserve configuration data in PoolDataProvider
         MockPoolDataProvider.ReserveConfig memory reserveConfig_weth = MockPoolDataProvider.ReserveConfig({
             decimals: 1e18,
@@ -80,7 +103,7 @@ contract AaveTest is Test {
         mockPoolDataProvider.setReserveConfigurationData(address(weth), reserveConfig_weth);
 
         // Deploy Aave contract
-        aave = new Aave(address(mockPool), address(mockOracle), address(mockPoolDataProvider), address(usdc));
+        aave = new Aave(address(mockPool), address(mockOracle), address(mockPoolDataProvider), address(usdc), address(usdt));
     }
 
     // ============ CONSTRUCTOR TESTS ============
@@ -122,8 +145,10 @@ contract AaveTest is Test {
             uint256 debtUSD,
             uint256 canBorrowUSD,
             uint256 canBorrowUSDC,
-            uint256 _currentLiquidationThreshold, // unit: 10000
-            uint256 _ltv // unit: 10000
+            uint256 _currentLiquidationThreshold,
+            uint256 _ltv,
+            uint256 _healthFactor,
+            HealthStatus _status
         ) = aave.getUserAccountData(custodian);
 
         assertEq(collateralUSD, 0);
@@ -152,15 +177,19 @@ contract AaveTest is Test {
             uint256 canBorrowUSD,
             uint256 canBorrowUSDC,
             uint256 liquidationThreshold,
-            uint256 ltv
+            uint256 ltv,
+            uint256 healthFactor,
+            HealthStatus status
         ) = aave.getUserAccountData(custodian);
 
         assertEq(collateralUSD, 10000);
         assertEq(debtUSD, 5000);
         assertEq(canBorrowUSD, 2500);
-        assertEq(canBorrowUSDC, 2500e6); // 2500 USDC (6 decimals)
+        assertEq(canBorrowUSDC, 2500e6);
         assertEq(liquidationThreshold, 8000);
         assertEq(ltv, 7500);
+        assertEq(healthFactor, 1.6e18);
+        assertEq(uint8(status), uint8(HealthStatus.Healthy));
     }
 
     function test_GetUserAccountData_ConvertsUSDCCorrectly() public {
@@ -174,7 +203,7 @@ contract AaveTest is Test {
             type(uint256).max
         );
 
-        (, , uint256 canBorrowUSD, uint256 canBorrowUSDC, , ) = aave.getUserAccountData(custodian);
+        (, , uint256 canBorrowUSD, uint256 canBorrowUSDC, , , , ) = aave.getUserAccountData(custodian);
 
         uint256 actualBorrowAmount = (canBorrowUSD * 1e8 * 1e6) / USDC_PRICE;
 
@@ -250,7 +279,7 @@ contract AaveTest is Test {
         );
 
         // Try to borrow $1,000 (safe amount)
-        aave.revertIfHFBreaks(1000e6, custodian);
+        aave.revertIfHFBreaks(1000e6, custodian, address(usdc));
     }
 
     function test_RevertIfHFBreaks_RevertsWhenExceedsMaxBorrow() public {
@@ -266,7 +295,7 @@ contract AaveTest is Test {
 
         // Try to borrow $3,000 (exceeds available)
         vm.expectRevert(ErrorsLib.Aave__ExceedsMaxBorrow.selector);
-        aave.revertIfHFBreaks(3000e6, custodian);
+        aave.revertIfHFBreaks(3000e6, custodian, address(usdc));
     }
 
     function test_RevertIfHFBreaks_RevertsWhenRiskyHealthFactor() public {
@@ -282,7 +311,7 @@ contract AaveTest is Test {
 
         // Borrowing amount that results in HF between 1.0 and 1.1
         vm.expectRevert(ErrorsLib.Aave__RiskyHealthFactor.selector); // Will revert with RiskyHealthFactor
-        aave.revertIfHFBreaks(1500e6, custodian);
+        aave.revertIfHFBreaks(1500e6, custodian, address(usdc));
     }
 
     function test_RevertIfHFBreaks_CalculatesNewHealthFactorCorrectly() public {
@@ -302,7 +331,7 @@ contract AaveTest is Test {
         // New debt = $7,000
         // New HF = (10,000 * 0.8) / 7,000 = 1.142857...
         // Should pass (HF > 1.1)
-        aave.revertIfHFBreaks(2000e6, custodian);
+        aave.revertIfHFBreaks(2000e6, custodian, address(usdc));
     }
 
     // ============ IS AT RISK TESTS ============
@@ -446,7 +475,7 @@ contract AaveTest is Test {
 
         // Should not revert for reasonable borrow amounts
         if (borrowAmount <= 30000e6) {
-            aave.revertIfHFBreaks(borrowAmount, custodian);
+            aave.revertIfHFBreaks(borrowAmount, custodian, address(usdc));
         }
     }
 

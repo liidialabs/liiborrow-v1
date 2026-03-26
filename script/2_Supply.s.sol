@@ -27,7 +27,7 @@ contract Supply is Script {
         // Deploy HelperConfig to get active network config
         helperConfig = new HelperConfig();
         (
-            ,, address weth,,, address _pool,,,
+            ,, address weth,,,, address _pool,,,
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -50,7 +50,7 @@ contract Supply is Script {
         // approve WETH to be spent by debt manager
         WETH.approve(address(debtManager), supplyAmount);
         // supply WETH to the protocol
-        debtManager.depositCollateralERC20(weth, supplyAmount);
+        debtManager.depositCollateralERC20(weth, supplyAmount, user);
 
         vm.stopBroadcast();
 

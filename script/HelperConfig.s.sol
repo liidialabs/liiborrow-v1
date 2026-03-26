@@ -19,6 +19,7 @@ contract HelperConfig is Script {
         address weth;
         address wbtc;
         address usdc;
+        address usdt;
         address pool;
         address oracle;
         address dataProvider;
@@ -60,6 +61,7 @@ contract HelperConfig is Script {
             weth: 0x49C954F846e870FE5402C7F65cD035592c81aadB,
             wbtc: address(0),
             usdc: 0x8ca959E4c4745df0E2fE5CE5fAcFD3F35ae509e9,
+            usdt: 0xCF146342D638FE3Ac96A9A6E61Eb2F2Ee38221c9,
             pool: 0xd64033432e085905487A490441C0cF8D47E1c40f,
             oracle: 0xDFe8c6121b43e3B5bd0731F724007D0119B838bc,
             dataProvider: 0x7F3e4036e201a35b147574554DBE698940E2758D,
@@ -85,6 +87,7 @@ contract HelperConfig is Script {
             weth: address(0),
             wbtc: address(0),
             usdc: address(0),
+            usdt: address(0),
             pool: address(0),
             oracle: address(0),
             dataProvider: address(0),

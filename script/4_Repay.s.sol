@@ -25,9 +25,7 @@ contract Repay is Script {
         helperConfig = new HelperConfig();
         // Get token, pool & oracle addresses from the active network config
         (
-            ,,,,
-            address usdc,
-            ,,,
+            ,, address weth,, address usdc, address usdt, address pool, address oracle, address dataProvider, uint256 deployerKey
         ) = helperConfig.activeNetworkConfig();
         (
             address debtManagerAddress,
@@ -70,7 +68,7 @@ contract Repay is Script {
         // approve USDC for repayment
         asset.approve(debtManagerAddress, repayAmount);
         // repay USDC debt
-        debtManager.repayUsdc(repayAmount);
+        debtManager.repay(usdc, repayAmount, USER);
 
         vm.stopBroadcast();
 
