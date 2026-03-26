@@ -53,15 +53,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     IWETH public immutable weth;
     /// @notice The Aave facade contract for reading protocol data.
     Aave public immutable aave;
-    /// @notice Precision multiplier for vToken decimals (10^vTokenDecimals).
-    uint256 private immutable VTOKEN_DEC_PRECISION;
-    /// @notice The USDC token address used as the debt/borrowable asset.
-    address private immutable USDC;
 
     // Protocol Constants
 
     /// @notice Sentinel address representing native ETH (as opposed to WETH).
     address private constant ETH = address(0);
+    /// @notice Precision multiplier for vToken decimals (10^vTokenDecimals).
+    uint256 private constant VTOKEN_DEC_PRECISION = 6;
     /// @notice Aave's LTV precision (1e4 = 100%).
     uint256 private constant AAVE_LTV_PRECISION = 1e4;
     /// @notice Safety buffer subtracted from Aave's LTV/LLTV when calculating platform limits.
@@ -90,7 +88,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     // Protocol Configurable Parameters
 
     /// @notice Cooldown period in seconds between user actions (deposit/repay).
-    uint256 private s_coolDownPeriod = 10 minutes;
+    uint256 private s_coolDownPeriod = 1 minutes;
     /// @notice Liquidation fee charged on seized collateral (1% initially).
     uint256 private s_liquidationFee = 0.01e18;
 
@@ -157,7 +155,6 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     constructor(
         address[] memory tokenAddresses,
         address _aave,
-        address _usdc,
         address _weth
     ) Ownable(msg.sender) {
         if (tokenAddresses.length == 0) {
@@ -171,13 +168,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             s_collateralTokens.push(tokenAddresses[i]);
             s_supportedCollateral[tokenAddresses[i]] = true;
         }
-        //
+        // AAVE
         aave = Aave(_aave);
         pool = aave.pool();
-        VTOKEN_DEC_PRECISION = 10 ** aave.vTokenDecimals();
-        //
+        // WETH
         weth = IWETH(_weth);
-        USDC = _usdc;
     }
 
     // Receive ETH
@@ -198,40 +193,42 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     // External Functions
 
     /// @notice Deposits an ERC20 token as collateral and supplies it to Aave.
-    /// @dev Caller must approve this contract to spend `tokenCollateralAddress` before calling.
+    /// @dev Caller must approve this contract to spend `collateralAddress` before calling.
     ///      The collateral is supplied to Aave as per the protocol's strategy.
     ///      Triggers a cooldown period for the user.
-    /// @param tokenCollateralAddress The ERC20 token address to use as collateral.
+    /// @param collateralAddress The ERC20 token address to use as collateral.
     /// @param amountCollateral The amount of tokens to deposit (in token decimals).
+    /// @param onBehalfOf Address providing collateral
     function depositCollateralERC20(
-        address tokenCollateralAddress,
-        uint256 amountCollateral
+        address collateralAddress,
+        uint256 amountCollateral,
+        address onBehalfOf
     )
-        public
+        external
         override
-        isCollateralPaused(tokenCollateralAddress)
+        isCollateralPaused(collateralAddress)
         moreThanZero(amountCollateral)
         nonReentrant
-        isSupportedToken(tokenCollateralAddress)
+        isSupportedToken(collateralAddress)
         whenNotPaused
     {
-        s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
-        s_totalColSupplied[tokenCollateralAddress] += amountCollateral;
-        s_collateralDeposited[msg.sender][
-            tokenCollateralAddress
+        s_coolDown[onBehalfOf] = uint32(block.timestamp + s_coolDownPeriod);
+        s_totalColSupplied[collateralAddress] += amountCollateral;
+        s_collateralDeposited[onBehalfOf][
+            collateralAddress
         ] += amountCollateral;
-        emit Supply(msg.sender, tokenCollateralAddress, amountCollateral);
+        emit Supply(onBehalfOf, collateralAddress, amountCollateral);
 
-        IERC20(tokenCollateralAddress).safeTransferFrom(
-            msg.sender,
+        IERC20(collateralAddress).safeTransferFrom(
+            onBehalfOf,
             address(this),
             amountCollateral
         );
-        IERC20(tokenCollateralAddress).approve(address(pool), amountCollateral);
+        IERC20(collateralAddress).approve(address(pool), amountCollateral);
 
         // Aave supply logic
         pool.supply({
-            asset: tokenCollateralAddress,
+            asset: collateralAddress,
             amount: amountCollateral,
             onBehalfOf: address(this),
             referralCode: 0
@@ -243,8 +240,10 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     ///      Collateral is tracked under both ETH (address(0)) and WETH addresses.
     ///      Triggers a cooldown period for the user.
     /// @param amountCollateral The amount of ETH to deposit (in wei).
+    /// @param onBehalfOf Address providing collateral
     function depositCollateralETH(
-        uint256 amountCollateral
+        uint256 amountCollateral,
+        address onBehalfOf
     )
         external
         payable
@@ -253,22 +252,22 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         nonReentrant
         whenNotPaused
     {
-        s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
+        s_coolDown[onBehalfOf] = uint32(block.timestamp + s_coolDownPeriod);
+
+        address collateral = address(weth);
 
         if (msg.value != amountCollateral) {
             revert ErrorsLib.DebtManager__AmountNotEqual();
         }
-        s_totalColSupplied[ETH] += amountCollateral;
-        /// @notice Since we cannot use ETH as an ERC20 we'll add it also to WETH
-        s_collateralDeposited[msg.sender][ETH] += amountCollateral;
-        s_collateralDeposited[msg.sender][address(weth)] += amountCollateral;
-        emit Supply(msg.sender, ETH, amountCollateral);
+        s_totalColSupplied[collateral] += amountCollateral;
+        s_collateralDeposited[onBehalfOf][collateral] += amountCollateral;
+        emit Supply(onBehalfOf, collateral, amountCollateral);
 
         // Aave supply logic
         weth.deposit{value: msg.value}();
-        IERC20(address(weth)).approve(address(pool), msg.value);
+        IERC20(collateral).approve(address(pool), msg.value);
         pool.supply({
-            asset: address(weth),
+            asset: collateral,
             amount: msg.value,
             onBehalfOf: address(this),
             referralCode: 0
@@ -282,10 +281,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     ///      Triggers a cooldown period for the user.
     /// @param collateral The ERC20 token address of the collateral to redeem.
     /// @param amountCollateral The amount of collateral to attempt to redeem.
-    /// @param isEth If true, the collateral will be returned as ETH (via WETH unwrap).
+    /// @param onBehalfOf Address to recieve withdrawn collateral
     function redeemCollateral(
         address collateral,
         uint256 amountCollateral,
+        address onBehalfOf,
         bool isEth
     )
         external
@@ -296,28 +296,24 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         enforceCooldown
         whenNotPaused
     {
-        s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
+        s_coolDown[onBehalfOf] = uint32(block.timestamp + s_coolDownPeriod);
 
-        uint256 _amountCollateral = s_collateralDeposited[msg.sender][
+        uint256 _amountCollateral = s_collateralDeposited[onBehalfOf][
             collateral
         ];
-        if (_amountCollateral == 0) {
+        if (_amountCollateral == 0 || _amountCollateral < amountCollateral) {
             revert ErrorsLib.DebtManager__InsufficientCollateral();
         }
 
-        uint256 maxAmount = _maxWithdrawAmount(msg.sender, collateral);
+        uint256 maxAmount = _maxWithdrawAmount(onBehalfOf, collateral);
         if (amountCollateral > maxAmount) {
             amountCollateral = maxAmount;
         }
-        if (isEth && s_collateralDeposited[msg.sender][ETH] > 0) {
-            s_collateralDeposited[msg.sender][ETH] -= amountCollateral;
-        } else {
-            isEth = false;
-        }
-        s_collateralDeposited[msg.sender][collateral] -= amountCollateral;
+        
+        s_collateralDeposited[onBehalfOf][collateral] -= amountCollateral;
 
-        _redeemCollateral(collateral, amountCollateral, false, isEth);
-        _revertIfHealthFactorIsBroken(msg.sender);
+        _redeemCollateral(collateral, onBehalfOf, amountCollateral, false, isEth);
+        _revertIfHealthFactorIsBroken(onBehalfOf);
     }
 
     /// @notice Borrows USDC against supplied collateral.
@@ -325,8 +321,11 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     ///      Calculates maximum borrow locally based on DebtManager's Aave position.
     ///      Triggers a cooldown period for the user.
     /// @param amountToBorrow The amount of USDC to borrow (in USDC units).
-    function borrowUsdc(
-        uint256 amountToBorrow
+    /// @param onBehalfOf Address of the account to recieve the usdc
+    function borrow(
+        address asset,
+        uint256 amountToBorrow,
+        address onBehalfOf
     )
         external
         override
@@ -339,43 +338,48 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         _currentPlatformLtvAndLltv();
 
         // check if supplied collateral
-        (, , uint256 collateralValueInUsd) = _getAccountInformation(msg.sender);
+        (, , uint256 collateralValueInUsd) = _getAccountInformation(onBehalfOf);
         if (collateralValueInUsd == 0) {
             revert ErrorsLib.DebtManager__NoCollateralSupplied();
         }
 
-        uint256 maxBorrowAmount = _maxBorrowAmount(msg.sender);
+        uint256 maxBorrowAmount = _maxBorrowAmount(onBehalfOf, asset);
         if (amountToBorrow > maxBorrowAmount) {
             amountToBorrow = maxBorrowAmount;
         }
 
-        aave.revertIfHFBreaks(amountToBorrow, address(this));
+        aave.revertIfHFBreaks(amountToBorrow, address(this), asset);
         _currentPlatformDebt();
-        _borrowUsd(amountToBorrow);
-        _revertIfHealthFactorIsBroken(msg.sender);
+        _borrow(asset, amountToBorrow, onBehalfOf);
+        _revertIfHealthFactorIsBroken(onBehalfOf);
     }
 
-    /// @notice Repays USDC debt on behalf of the caller.
+    /// @notice Repays USDC or USDT debt on behalf of a user.
     /// @dev Partial or full repayment is allowed. If amount exceeds debt, excess is ignored.
     ///      The protocol takes its cut (APR spread) from the repayment.
-    /// @param amountToRepay The amount of USDC to repay (in USDC units).
-    function repayUsdc(
-        uint256 amountToRepay
+    ///      Triggers a cooldown period for the user.
+    /// @param asset The asset to repay (USDC or USDT).
+    /// @param amountToRepay The amount of debt to repay (in asset units).
+    /// @param onBehalfOf Address of the user whose debt is being repaid.
+    function repay(
+        address asset,
+        uint256 amountToRepay,
+        address onBehalfOf
     ) external override nonReentrant moreThanZero(amountToRepay) whenNotPaused {
         // check if borrowed
-        (uint256 totalUsdcBorrowedInUsd, , ) = _getAccountInformation(
-            msg.sender
+        (uint256 totalBorrowInUsd, , ) = _getAccountInformation(
+            onBehalfOf
         );
-        if (totalUsdcBorrowedInUsd == 0) {
+        if (totalBorrowInUsd == 0) {
             revert ErrorsLib.DebtManager__NoAssetBorrowed();
         }
         // check if excess
-        (, uint256 userTotalDebt) = _debtOwed(msg.sender); // NB: Current protocol debt is updated here
+        (, uint256 userTotalDebt) = _debtOwed(onBehalfOf); // NB: Current protocol debt is updated here
         if (amountToRepay > userTotalDebt) {
             amountToRepay = userTotalDebt;
         }
 
-        _repayUsdc(amountToRepay);
+        _repay(asset, amountToRepay, onBehalfOf);
     }
 
     /// @notice Sets the protocol APR markup (spread on top of Aave's rate).
@@ -482,14 +486,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
 
         (
-            uint256 totalUsdcBorrowedInUsd,
+            uint256 totalBorrowInUsd,
             ,
             uint256 collateralValueInUsd
         ) = _getAccountInformation(user);
-        if (totalUsdcBorrowedInUsd == 0 || collateralValueInUsd == 0)
+        if (totalBorrowInUsd == 0 || collateralValueInUsd == 0)
             return type(uint256).max;
 
-        ltv = (totalUsdcBorrowedInUsd * BASE_PRECISION) / collateralValueInUsd;
+        ltv = (totalBorrowInUsd * BASE_PRECISION) / collateralValueInUsd;
     }
 
     /**
@@ -545,6 +549,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         // collateral to seize
         uint256 amountOfCollateralToSeize = getCollateralAmountToSeize(
             collateralAsset,
+            debtAsset,
             repayAmount
         );
         amountOfCollateralToSeize =
@@ -568,7 +573,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         });
 
         // Burn liquidated user's shares
-        uint256 sharesToBurn = _sharesToBurn(repayAmount);
+        uint256 sharesToBurn = _sharesCalc(repayAmount);
         s_userDebtShares[user] -= sharesToBurn;
         s_totalDebtShares -= sharesToBurn;
 
@@ -577,7 +582,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             s_collateralDeposited[user][ETH] -= amountOfCollateralToSeize;
         }
         s_collateralDeposited[user][collateralAsset] -= amountOfCollateralToSeize;
-        _redeemCollateral(collateralAsset, amountOfCollateralToSeize, true, isEth);
+        _redeemCollateral(collateralAsset, msg.sender, amountOfCollateralToSeize, true, isEth);
         _revertIfHealthFactorIsBroken(user);
 
         emit Liquidated(
@@ -612,7 +617,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         if (to == ETH || asset == ETH) {
             revert ErrorsLib.DebtManager__ZeroAddress();
         }
-        if (asset == USDC) {
+        if (asset == aave.USDC() || asset == aave.USDT()) {
             if (
                 amount > s_protocolRevenueAccrued ||
                 s_protocolRevenueAccrued == 0
@@ -634,27 +639,31 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
     // Private Functions
 
-    /**
-     * @dev Calls the Aave borrow function and updates user debt shares
-     * @param amountToBorrow: The amount of USDC to borrow
-     */
-    function _borrowUsd(uint256 amountToBorrow) private {
-        s_coolDown[msg.sender] = uint32(block.timestamp + s_coolDownPeriod);
+    /// @dev Mints debt shares for the user and calls Aave to borrow the asset.
+    /// @param asset The asset to borrow (USDC or USDT).
+    /// @param amountToBorrow The amount to borrow in asset units.
+    /// @param onBehalfOf The address receiving the borrowed assets.
+    function _borrow(
+        address asset,
+        uint256 amountToBorrow,
+        address onBehalfOf
+    ) private {
+        s_coolDown[onBehalfOf] = uint32(block.timestamp + s_coolDownPeriod);
 
         uint256 shares; // to 1e18
         if (s_totalDebtShares == 0) {
             shares = (amountToBorrow * BASE_PRECISION) / USDC_PRECISION;
         } else {
-            shares = _sharesToGet(amountToBorrow);
+            shares = _sharesCalc(amountToBorrow);
         }
-        s_userDebtShares[msg.sender] += shares;
+        s_userDebtShares[onBehalfOf] += shares;
         s_totalDebtShares += shares;
 
-        emit Borrow(msg.sender, amountToBorrow, uint32(block.timestamp));
+        emit Borrow(onBehalfOf, amountToBorrow, uint32(block.timestamp));
 
         // aave logic
         pool.borrow({
-            asset: USDC,
+            asset: asset,
             amount: amountToBorrow,
             // 1 = Stable interest rate
             // 2 = Variable interest rate
@@ -662,28 +671,36 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             referralCode: 0,
             onBehalfOf: address(this)
         });
+
+        // forward asset to user
+        IERC20(asset).safeTransfer(msg.sender, amountToBorrow);
     }
 
-    /**
-     * @dev Calls the Aave repay function and updates user debt shares
-     * @param amountToRepay: The amount of USDC to repay
-     */
-    function _repayUsdc(uint256 amountToRepay) private {
+    /// @dev Processes repayment by splitting the amount into Aave's share and protocol's cut.
+    ///      Burns the corresponding debt shares and transfers funds to Aave.
+    /// @param asset The asset being repaid (USDC or USDT).
+    /// @param amountToRepay The total amount to repay.
+    /// @param onBehalfOf The user whose debt is being repaid.
+    function _repay(
+        address asset,
+        uint256 amountToRepay,
+        address onBehalfOf
+    ) private {
         // take platform cut
         (uint256 aaveCut, uint256 protocolCut) = _repayCut(amountToRepay);
         s_protocolRevenueAccrued += protocolCut;
 
-        uint256 sharesToBurn = _sharesToBurn(aaveCut);
-        s_userDebtShares[msg.sender] -= sharesToBurn;
+        uint256 sharesToBurn = _sharesCalc(aaveCut);
+        s_userDebtShares[onBehalfOf] -= sharesToBurn;
         s_totalDebtShares -= sharesToBurn;
-        emit RepayUsdc(msg.sender, amountToRepay, uint32(block.timestamp));
+        emit RepayUsdc(onBehalfOf, amountToRepay, uint32(block.timestamp));
 
-        IERC20(USDC).safeTransferFrom(msg.sender, address(this), amountToRepay);
+        IERC20(asset).safeTransferFrom(onBehalfOf, address(this), amountToRepay);
 
         // aave logic
-        IERC20(USDC).approve(address(pool), aaveCut);
+        IERC20(asset).approve(address(pool), aaveCut);
         pool.repay({
-            asset: USDC,
+            asset: asset,
             amount: aaveCut,
             interestRateMode: 2,
             onBehalfOf: address(this)
@@ -694,12 +711,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @dev Redeem collateral from Aave and transfer to user
      * @notice If isLiquidating is true, a liquidation fee is charged
      * @param collateral: The asset to redeem
+     * @param onBehalfOf Address to recieve withdrawn collateral
      * @param amountCollateral: The amount of collateral to redeem
      * @param isLiquidating: Boolean to indicate if the redemption is part of a liquidation
-     * @param isEth: Boolean to indicate if the collateral being redeemed is ETH
+     * @param isEth: Boolean to indicate if the collateral should be returned as ETH
      */
     function _redeemCollateral(
         address collateral,
+        address onBehalfOf,
         uint256 amountCollateral,
         bool isLiquidating,
         bool isEth
@@ -721,21 +740,20 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
             s_liquidationRevenue[collateral] += (amountCollateral - amount);
         } else {
             amount = amountCollateral;
+            emit Withdraw(onBehalfOf, onBehalfOf, collateral, amountCollateral);
         }
 
         // ETH transfer
-        if (isEth) {
+        if (collateral == address(weth)) {
             weth.withdraw(amount);
-            (bool sent, ) = msg.sender.call{value: amount}("");
+            (bool sent, ) = onBehalfOf.call{value: amount}("");
             if (!sent) {
                 revert ErrorsLib.DebtManager__TransferFailed();
             }
             return;
         }
         // ERC20 transfer
-        IERC20(collateral).safeTransfer(msg.sender, amount);
-
-        emit Withdraw(msg.sender, msg.sender, collateral, amountCollateral);
+        IERC20(collateral).safeTransfer(onBehalfOf, amount);
     }
 
     /**
@@ -745,29 +763,30 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      */
     function _maxBorrowValue(address user) private returns (uint256 upto) {
         (
-            uint256 totalUsdcBorrowedInUsd,
+            uint256 totalBorrowInUsd,
             ,
             uint256 collateralValueInUsd
         ) = _getAccountInformation(user);
 
         uint256 collateralAdjustedForLtv = (collateralValueInUsd *
             s_platformLtv) / BASE_PRECISION;
-        if (totalUsdcBorrowedInUsd >= collateralAdjustedForLtv) {
+        if (totalBorrowInUsd >= collateralAdjustedForLtv) {
             revert ErrorsLib.DebtManager__AlreadyAtBreakingPoint();
         }
-        upto = collateralAdjustedForLtv - totalUsdcBorrowedInUsd;
+        upto = collateralAdjustedForLtv - totalBorrowInUsd;
     }
 
     /**
-     * @dev Calculate the maximum borrow amount in USDC that a user can borrow without breaking their health factor
+     * @dev Calculate the maximum borrow amount that a user can borrow without breaking their health factor
      * @param user The address of the user
-     * @return upto The maximum borrow amount in USDC
+     * @param asset The asset to borrow (USDC or USDT)
+     * @return upto The maximum borrow amount
      */
-    function _maxBorrowAmount(address user) private returns (uint256 upto) {
+    function _maxBorrowAmount(address user, address asset) private returns (uint256 upto) {
         uint256 maxBorrowValue = _maxBorrowValue(user);
 
-        uint256 price = _getAssetPrice(USDC);
-        uint8 tokenDecimals = IERC20Metadata(USDC).decimals();
+        uint256 price = _getAssetPrice(asset);
+        uint8 tokenDecimals = IERC20Metadata(asset).decimals();
 
         upto =
             (maxBorrowValue * uint256(10 ** tokenDecimals)) /
@@ -786,7 +805,7 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     ) private returns (uint256 upto) {
         // Should maintain internal HF at 1
         (
-            uint256 totalUsdcBorrowedInUsd,
+            uint256 totalBorrowInUsd,
             ,
             uint256 collateralValueInUsd
         ) = _getAccountInformation(user);
@@ -795,12 +814,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
         // Get the value
         uint256 withdrawalValue;
-        if (totalUsdcBorrowedInUsd == 0) {
+        if (totalBorrowInUsd == 0) {
             withdrawalValue = collateralValueInUsd;
         } else {
             uint256 threshold = (collateralValueInUsd * s_platformLtv) /
                 BASE_PRECISION;
-            withdrawalValue = threshold - totalUsdcBorrowedInUsd;
+            withdrawalValue = threshold - totalBorrowInUsd;
         }
 
         // Get value amount
@@ -845,29 +864,14 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
         protocolCut = amountBeingRepayed - aaveCut;
     }
 
-    /**
-     * @dev Calculate the number of debt shares to mint when borrowing
-     * @param amountToBorrow The amount of USDC to borrow
-     * @return shares The number of debt shares to mint
-     */
-    function _sharesToGet(
-        uint256 amountToBorrow
+    /// @dev Calculates the number of debt shares to mint or burn based on an amount.
+    /// @param amountToRepayOrBorrow The amount in asset units.
+    /// @return shares The number of debt shares.
+    function _sharesCalc(
+        uint256 amountToRepayOrBorrow
     ) private view returns (uint256 shares) {
         shares =
-            (amountToBorrow * s_totalDebtShares * VTOKEN_DEC_PRECISION) /
-            (aaveDebt * USDC_PRECISION);
-    }
-
-    /**
-     * @dev Calculate the number of debt shares to burn when repaying
-     * @param amountToRepay The amount of USDC to repay
-     * @return shares The number of debt shares to burn
-     */
-    function _sharesToBurn(
-        uint256 amountToRepay
-    ) private view returns (uint256 shares) {
-        shares =
-            (amountToRepay * s_totalDebtShares * VTOKEN_DEC_PRECISION) /
+            (amountToRepayOrBorrow * s_totalDebtShares * VTOKEN_DEC_PRECISION) /
             (aaveDebt * USDC_PRECISION);
     }
 
@@ -884,12 +888,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     ) private returns (uint256 userAaveDebt, uint256 userTotalDebt) {
         _currentPlatformDebt();
         if (s_userDebtShares[user] == 0) return (0, 0);
-        userAaveDebt =
-            (s_userDebtShares[user] * aaveDebt * USDC_PRECISION) /
-            (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to aave
-        userTotalDebt =
-            (s_userDebtShares[user] * totalDebt * USDC_PRECISION) /
-            (s_totalDebtShares * VTOKEN_DEC_PRECISION); // owed to protocol + aave
+        userAaveDebt = _debtCalc(user, aaveDebt); // owed to aave
+        userTotalDebt = _debtCalc(user, totalDebt); // owed to protocol + aave
+    }
+
+    function _debtCalc(address user, uint256 baseAmount) internal view returns(uint256 debt) {
+        debt = (s_userDebtShares[user] * baseAmount * USDC_PRECISION) /
+            (s_totalDebtShares * VTOKEN_DEC_PRECISION);
     }
 
     /**
@@ -897,8 +902,9 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @notice Debt remains in original vToken precision
      */
     function _currentPlatformDebt() private {
-        aaveDebt = aave.getVariableDebt(address(this), USDC);
-        totalDebt =
+        (uint256 usdc, uint256 usdt) = aave.getVariableDebt(address(this));
+        aaveDebt = usdc + usdt;
+        totalDebt = 
             (aaveDebt * (BASE_PRECISION + protocolAPRMarkup)) /
             BASE_PRECISION;
     }
@@ -923,8 +929,8 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @dev Get account information for a user
      * @notice All return values are in USD value (1e18 = 1 USD)
      * @param user The address of the user
-     * @return totalUsdcBorrowedInUsd The total USDC borrowed by the user in USD value
-     * @return totalUsdcToRepay The total USDC to repay by the user in USD value (including protocol cut)
+     * @return totalBorrowInUsd The total borrowed by the user in USD value
+     * @return totaRepayInUsd The total to repay by the user in USD value (including protocol cut)
      * @return collateralValueInUsd The total collateral value of the user in USD
      */
     function _getAccountInformation(
@@ -932,16 +938,36 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     )
         private
         returns (
-            uint256 totalUsdcBorrowedInUsd,
-            uint256 totalUsdcToRepay,
+            uint256 totalBorrowInUsd,
+            uint256 totaRepayInUsd,
             uint256 collateralValueInUsd
         )
     {
-        // Get user's share of debt
-        (uint256 userAaveDebt, uint256 userTotalDebt) = _debtOwed(user);
-        totalUsdcBorrowedInUsd = _getUsdValue(USDC, userAaveDebt);
-        totalUsdcToRepay = _getUsdValue(USDC, userTotalDebt);
+        (uint256 usdcDebt, uint256 usdtDebt) = _userDebtByAsset(user);
+        uint256 usdcValue = _getUsdValue(aave.USDC(), usdcDebt);
+        uint256 usdtValue = _getUsdValue(aave.USDT(), usdtDebt);
+        
+        uint256 userAaveDebt = usdcDebt + usdtDebt;
+        uint256 userTotalDebt = (userAaveDebt * (BASE_PRECISION + protocolAPRMarkup)) / BASE_PRECISION;
+        
+        totalBorrowInUsd = usdcValue + usdtValue;
+        totaRepayInUsd = _getUsdValue(aave.USDC(), userTotalDebt);
         collateralValueInUsd = getAccountCollateralValue(user);
+    }
+
+    function _userDebtByAsset(address user) internal returns (uint256 usdcDebt, uint256 usdtDebt) {
+        _currentPlatformDebt();
+        if (s_userDebtShares[user] == 0) return (0, 0);
+        
+        (uint256 totalUsdcDebt, uint256 totalUsdtDebt) = aave.getVariableDebt(address(this));
+        uint256 totalPlatformDebt = totalUsdcDebt + totalUsdtDebt;
+        
+        if (totalPlatformDebt == 0) return (0, 0);
+        
+        uint256 userShare = (s_userDebtShares[user] * VTOKEN_DEC_PRECISION) / s_totalDebtShares;
+        
+        usdcDebt = (totalUsdcDebt * userShare) / VTOKEN_DEC_PRECISION;
+        usdtDebt = (totalUsdtDebt * userShare) / VTOKEN_DEC_PRECISION;
     }
 
     /**
@@ -952,13 +978,13 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     function _healthFactor(address user) private returns (uint256) {
         _currentPlatformLtvAndLltv(); // update platform ltv & lltv
         (
-            uint256 totalUsdcBorrowedInUsd,
+            uint256 totalBorrowInUsd,
             ,
             uint256 collateralValueInUsd
         ) = _getAccountInformation(user);
         return
             _calculateHealthFactor(
-                totalUsdcBorrowedInUsd,
+                totalBorrowInUsd,
                 collateralValueInUsd
             );
     }
@@ -997,20 +1023,20 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
 
     /**
      * @dev Calculate the health factor based on total borrowed and collateral value
-     * @param totalUsdcBorrowedInUsd The total USDC borrowed by the user in USD value
+     * @param totalBorrowInUsd The total USDC borrowed by the user in USD value
      * @param collateralValueInUsd The total collateral value of the user in USD
      * @return hFactor The health factor of the user
      */
     function _calculateHealthFactor(
-        uint256 totalUsdcBorrowedInUsd,
+        uint256 totalBorrowInUsd,
         uint256 collateralValueInUsd
     ) internal view returns (uint256 hFactor) {
-        if (totalUsdcBorrowedInUsd == 0) return type(uint256).max;
+        if (totalBorrowInUsd == 0) return type(uint256).max;
         uint256 collateralAdjustedForThreshold = (collateralValueInUsd *
             s_platformLltv) / BASE_PRECISION;
         hFactor =
             (collateralAdjustedForThreshold * BASE_PRECISION) /
-            totalUsdcBorrowedInUsd;
+            totalBorrowInUsd;
     }
 
     /**
@@ -1081,14 +1107,17 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     /**
      * @notice Returns the amount of collateral to seize during liquidation based on USD value
      * @param collateral: The collateral asset address
-     * @param debtAmount: The USDC amount being repaid
+     * @param collateral: The collateral asset address
+     * @param debtAsset: The debt asset being repaid (USDC or USDT)
+     * @param debtAmount: The debt amount being repaid
      * @return amount: The amount of collateral to seize
      */
     function getCollateralAmountToSeize(
         address collateral,
+        address debtAsset,
         uint256 debtAmount
     ) public view override returns (uint256) {
-        uint256 valueOfRepayAmount = _getUsdValue(USDC, debtAmount); // in USD to 1e18
+        uint256 valueOfRepayAmount = _getUsdValue(debtAsset, debtAmount); // in USD to 1e18
         uint256 liquidationBonus = aave.getAssetLiquidationBonus(collateral); // in 1e18
         uint256 valueOfCollateralToSeize = (valueOfRepayAmount *
             liquidationBonus) / (BASE_PRECISION * ADDITIONAL_FEED_PRECISION); // in USD to 1e8
@@ -1141,14 +1170,15 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
      * @param user The address of the user
      * @return value The maximum borrowable value in USD
      * @return amount The maximum borrowable amount in USDC
-     */
+      */
     function getUserMaxBorrow(
-        address user
+        address user,
+        address asset
     ) external override returns (uint256 value, uint256 amount) {
         _currentPlatformLtvAndLltv();
 
         value = _maxBorrowValue(user);
-        amount = _maxBorrowAmount(user);
+        amount = _maxBorrowAmount(user, asset);
     }
 
     /**
@@ -1242,12 +1272,12 @@ contract DebtManager is ReentrancyGuard, Ownable, Pausable, IDebtManager {
     /**
      * @notice Returns the total debt to repay for a user in USD value, 1e18 = 1 USD
      * @param user The address of the user
-     * @return totalUsdcToRepay The total amount to repay in USDC (Aave debt + protocol cut)
+     * @return totaRepayInUsd The total amount to repay in USDC (Aave debt + protocol cut)
      */
     function getUserTotalDebt(
         address user
-    ) external override returns (uint256 totalUsdcToRepay) {
-        (, totalUsdcToRepay, ) = _getAccountInformation(user);
+    ) external override returns (uint256 totaRepayInUsd) {
+        (, totaRepayInUsd, ) = _getAccountInformation(user);
     }
 
     /**
