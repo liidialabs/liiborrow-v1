@@ -27,6 +27,7 @@ contract DeployDebtManager is Script {
             address weth,
             address wbtc,
             address usdc,
+            address usdt,
             address pool,
             address oracle,
             address dataProvider,
@@ -46,9 +47,9 @@ contract DeployDebtManager is Script {
         vm.startBroadcast(deployerKey);
 
         // deploy aave
-        aave = new Aave(pool, oracle, dataProvider, usdc);
+        aave = new Aave(pool, oracle, dataProvider, usdc, usdt);
         // deploy debt manager
-        debtManager = new DebtManager(tokenAddresses, address(aave), usdc, weth);
+        debtManager = new DebtManager(tokenAddresses, address(aave), weth);
         // Lowere cooldown period
         uint256 _newCoolDown = 30 seconds;
         debtManager.setCoolDownPeriod(_newCoolDown);
